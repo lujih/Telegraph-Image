@@ -1,358 +1,751 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <!-- import CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css"
-    integrity="sha256-ghr1zmXTODLKl1HULQd6fq1MIe7m3FJiNTOCT8sddLM=" crossorigin="anonymous">
-  <style>
-    .el-image__inner.el-image__inner {
-      width: 100%;
-      height: 90px;
-    }
-
-    .el-image {
-      text-align: center;
-    }
-
-    .el-button+.el-button {
-      margin: 0;
-    }
-  </style>
-  <script src="https://js.sentry-cdn.com/219f636ac7bde5edab2c3e16885cb535.min.js" crossorigin="anonymous"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegraph-Image | 管理后台</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
-  <div id="app">
-    <el-container>
-      <el-header>
-        <div style="
-         margin: auto;
-         line-height: 60px;
-         font-size: xx-large;
-         position: relative;
-     ">Dashboard
+  <div id="app" @dragover.prevent="onDragOver" @dragleave="onDragLeave" @drop.prevent="onDrop">
+    <div v-if="showDragOverlay" class="drag-overlay">
+      <div class="drag-overlay-content">
+        <i class="fas fa-cloud-upload-alt drag-overlay-icon"></i>
+        <div class="drag-overlay-text">松开鼠标上传文件</div>
+      </div>
+    </div>
 
+    <!-- Navbar -->
+    <nav class="navbar">
+      <a href="/" class="navbar-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        <span>管理后台</span>
+      </a>
+      <div class="navbar-search">
+        <el-input v-model="search" @input="handleSearch" size="mini" placeholder="搜索文件名..." prefix-icon="el-icon-search" clearable></el-input>
+      </div>
+      <div class="navbar-actions">
+        <button class="nav-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="网格视图">
+          <i class="fas fa-th"></i>
+        </button>
+        <button class="nav-btn" :class="{ active: viewMode === 'waterfall' }" @click="viewMode = 'waterfall'" title="瀑布流视图">
+          <i class="fas fa-bars"></i>
+        </button>
+        <button class="nav-btn" @click="handleUpload" title="上传文件">
+          <i class="fas fa-upload"></i>
+        </button>
+        <button class="nav-btn" @click="handleFolderUpload" title="文件夹上传">
+          <i class="fas fa-folder-open"></i>
+        </button>
+        <button class="theme-toggle" @click="toggleTheme" title="切换主题">
+          <svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </div>
+    </nav>
 
-          <span style="
-     position: absolute;
-     right: 0px;
-      ">
-            <a href="./admin-imgtc.html">
-              <el-button size="mini" type="warning">网格视图</el-button>
-            </a>
-            <a href="./admin-waterfall.html">
-              <el-button size="mini" type="primary">瀑布流</el-button>
-            </a>
-            <el-button v-if="showLogoutButton" size="mini" type="info" @click="handleLogout()">退出登录</el-button></span>
+    <!-- Stats Panel -->
+    <div class="stats-panel">
+      <div class="stats-card">
+        <div class="stats-header" @click="statsCollapsed = !statsCollapsed">
+          <span class="stats-title">数据统计</span>
+          <i class="fas fa-chevron-down stats-toggle-icon" :class="{ collapsed: statsCollapsed }"></i>
         </div>
-      </el-header>
-      <el-main><el-row :gutter="12">
-          <el-col :span="24">
-            <el-card shadow="always">
-              记录总数量:
-              {{ Number }}
-            </el-card>
-          </el-col>
-          <!--<el-col :span="8">
-              <el-card shadow="hover">
-                <el-tooltip class="item" effect="dark" content="白名单数量" placement="top-start">
-                   
-                </el-tooltip>
-                白名单数量：{{ WhiteList }}
-              </el-card>
-            </el-col>
-            <el-col :span="8">
-              <el-card shadow="hover">
-                <el-tooltip class="item" effect="dark" content="黑名单数量" placement="top-start">
-                
-              </el-tooltip>
-              黑名单数量：{{ BlackList }}
-              </el-card>
-            </el-col>-->
-        </el-row>
-        <template>
-          <el-table :data="tableData.filter(data => !search || data.name.toLowerCase().includes(search.toLowerCase()))"
-            style="width: 100%">
-            <el-table-column label="name" prop="name">
-            </el-table-column>
-            <el-table-column label="preview" prop="preview" align="center">
-              <template slot-scope="scope">
-                <video v-if="scope.row.name.indexOf('.mp4')>0" style="width: 100%; height: 180px;" controls>
-                  <source :src="'/file/'+scope.row.name" type="video/mp4">
-                </video>
-                <el-image v-else style="width: 100%; height: 100%;" :src="'/file/'+scope.row.name" :zoom-rate="1.2"
-                  :preview-src-list="['/file/'+scope.row.name]" fit="cover" lazy />
+        <div class="stats-body" v-show="!statsCollapsed">
+          <div class="stat-item">
+            <div class="stat-value">{{ tableData.length }}</div>
+            <div class="stat-label">总文件</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.image }}</div>
+            <div class="stat-label">图片</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.video }}</div>
+            <div class="stat-label">视频</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.audio }}</div>
+            <div class="stat-label">音频</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.document }}</div>
+            <div class="stat-label">文档</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.liked }}</div>
+            <div class="stat-label">收藏</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.blocked }}</div>
+            <div class="stat-label">黑名单</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ fileStats.whitelisted }}</div>
+            <div class="stat-label">白名单</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-              </template>
-            </el-table-column>
-            <el-table-column label="data" prop="data">
-              <template slot-scope="scope">
-                <el-popover trigger="hover" placement="top">
-                  <p>{{ scope.row.metadata }}</p>
-                  <div slot="reference" class="name-wrapper">
-                    <el-tag size="medium">{{ scope.row.metadata }}</el-tag>
-                  </div>
-                </el-popover>
-              </template>
-            </el-table-column>
-            <el-table-column align="right">
-              <template slot="header" slot-scope="scope">
-                <el-input v-model="search" @input="handleSearch" size="mini" placeholder="输入关键字搜索" />
-              </template>
-              <template slot-scope="scope">
-                <el-button size="mini" type="primary" @click="handleCopy(scope.$index,scope.row.name)">复制地址</el-button>
-                <el-button size="mini" type="primary" @click="handleWhite(scope.$index,scope.row.name)">白名单</el-button>
-                <el-button size="mini" type="info" @click="handleBlock(scope.$index,scope.row.name)">黑名单</el-button>
-                <el-button size="mini" type="danger" @click="handleDelete(scope.$index,scope.row.name)">删除</el-button>
-              </template>
-            </el-table-column>
-            </el-table>
-            <el-button v-if="nextCursor" style="margin-top:16px" @click="loadMore">加载更多</el-button>
-          </template>
-        </el-main>
-    </el-container>
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-label">类型:</span>
+        <button class="toolbar-btn" :class="{ active: fileType === 'all' }" @click="fileType = 'all'">全部</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'image' }" @click="fileType = 'image'">图片</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'video' }" @click="fileType = 'video'">视频</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'audio' }" @click="fileType = 'audio'">音频</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'document' }" @click="fileType = 'document'">文档</button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">状态:</span>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'all' }" @click="filterOption = 'all'">全部</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'favorites' }" @click="filterOption = 'favorites'">收藏</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'blocked' }" @click="filterOption = 'blocked'">黑名单</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'unblocked' }" @click="filterOption = 'unblocked'">白名单</button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">排序:</span>
+        <button class="toolbar-btn" :class="{ active: sortOption === 'dateDesc' }" @click="sortOption = 'dateDesc'">时间</button>
+        <button class="toolbar-btn" :class="{ active: sortOption === 'nameAsc' }" @click="sortOption = 'nameAsc'">名称</button>
+        <button class="toolbar-btn" :class="{ active: sortOption === 'sizeDesc' }" @click="sortOption = 'sizeDesc'">大小</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-group">
+        <button class="toolbar-btn" @click="selectAllInPage">全选</button>
+        <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchCopy" v-if="selectedCount > 0">复制({{ selectedCount }})</button>
+        <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchDelete" v-if="selectedCount > 0">删除({{ selectedCount }})</button>
+        <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchBlock('Block')" v-if="selectedCount > 0">黑名单</button>
+        <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchBlock('White')" v-if="selectedCount > 0">白名单</button>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content-area">
+      <!-- Grid View -->
+      <div class="grid-view" v-if="viewMode === 'grid'">
+        <div v-for="(item, index) in paginatedTableData" :key="item.name" class="grid-card" :class="{ selected: item.selected }" @click="toggleSelectItem(item)">
+          <div class="card-checkbox">
+            <el-checkbox v-model="item.selected" @click.native.stop @change="onSelectChange"></el-checkbox>
+          </div>
+          <button class="card-like" :class="{ liked: item.metadata.liked }" @click.stop="toggleLike(item)" title="收藏">
+            <i :class="item.metadata.liked ? 'fas fa-heart' : 'far fa-heart'"></i>
+          </button>
+          <div class="card-preview">
+            <template v-if="isImage(item.name)">
+              <el-image :src="'/file/' + item.name" fit="cover" lazy></el-image>
+            </template>
+            <template v-else-if="isVideo(item.name)">
+              <video :src="'/file/' + item.name" muted preload="metadata"></video>
+            </template>
+            <template v-else-if="isAudio(item.name)">
+              <div class="card-preview-placeholder">
+                <i class="fas fa-music"></i>
+              </div>
+            </template>
+            <template v-else>
+              <div class="card-preview-placeholder">
+                <i :class="getFileIcon(item.name)"></i>
+              </div>
+            </template>
+          </div>
+          <div class="card-info">
+            <div class="card-name" :title="item.metadata.fileName || item.name">{{ item.metadata.fileName || item.name }}</div>
+            <div class="card-meta">
+              <span>{{ formatFileSize(item.metadata.fileSize) }}</span>
+              <span v-if="item.metadata.ListType === 'Block'" style="color:var(--error)">黑名单</span>
+              <span v-else-if="item.metadata.ListType === 'White'" style="color:var(--success)">白名单</span>
+            </div>
+          </div>
+          <div class="card-actions" @click.stop>
+            <button class="action-btn" @click="handleCopy(item)"><i class="fas fa-link"></i> 复制</button>
+            <button class="action-btn" @click="handleEditName(item)"><i class="fas fa-edit"></i> 编辑</button>
+            <button class="action-btn danger" @click="handleDelete(item)"><i class="fas fa-trash"></i> 删除</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Waterfall View -->
+      <div class="waterfall-view" v-else>
+        <div v-for="(item, index) in paginatedTableData" :key="item.name" class="waterfall-item" @click="previewImage(item)">
+          <el-image v-if="isImage(item.name)" :src="'/file/' + item.name" fit="cover" lazy :preview-src-list="['/file/' + item.name]"></el-image>
+          <div class="card-info">
+            <div class="card-name" :title="item.metadata.fileName || item.name">{{ item.metadata.fileName || item.name }}</div>
+            <div class="card-meta">
+              <span>{{ formatFileSize(item.metadata.fileSize) }}</span>
+              <span v-if="item.metadata.ListType === 'Block'" style="color:var(--error)">黑名单</span>
+              <span v-else-if="item.metadata.ListType === 'White'" style="color:var(--success)">白名单</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-if="paginatedTableData.length === 0" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+        <i class="fas fa-inbox" style="font-size:48px;margin-bottom:16px;opacity:0.5;"></i>
+        <p>暂无文件</p>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-area">
+      <el-pagination
+        background
+        layout="prev, pager, next"
+        :total="filteredTableData.length"
+        :page-size="pageSize"
+        @current-change="currentPage = $event"
+        :current-page.sync="currentPage"
+        v-if="filteredTableData.length > 0">
+      </el-pagination>
+    </div>
+    <div style="text-align:center;padding-bottom:20px;">
+      <el-button v-if="nextCursor" @click="loadMore" type="primary" size="small">加载更多</el-button>
+    </div>
+
+    <!-- Upload Drawer -->
+    <el-drawer title="上传管理" :visible.sync="showUploadPanel" size="420px" :before-close="handleDrawerClose" custom-class="upload-drawer">
+      <div class="upload-panel">
+        <div class="upload-panel-header">
+          <span class="upload-summary">共 {{ uploadTasks.length }} 个文件，成功 {{ uploadSuccessCount }} 个，失败 {{ uploadFailedCount }} 个</span>
+          <el-button size="mini" type="primary" @click="retryFailed" v-if="uploadFailedCount > 0">重试失败</el-button>
+        </div>
+        <div class="upload-task-list">
+          <div v-for="(task, idx) in uploadTasks" :key="task.id" class="upload-task-item" :class="task.status">
+            <div class="task-info">
+              <span class="task-status-icon">
+                <i v-if="task.status === 'success'" class="fas fa-check-circle success-icon"></i>
+                <i v-else-if="task.status === 'error'" class="fas fa-times-circle error-icon"></i>
+                <i v-else-if="task.status === 'uploading'" class="fas fa-spinner fa-spin uploading-icon"></i>
+                <i v-else-if="task.status === 'paused'" class="fas fa-pause-circle paused-icon"></i>
+                <i v-else-if="task.status === 'cancelled'" class="fas fa-ban cancelled-icon"></i>
+                <i v-else class="fas fa-hourglass-half queued-icon"></i>
+              </span>
+              <span class="task-name" :title="task.fileName">{{ task.fileName }}</span>
+              <span class="task-size">{{ formatFileSize(task.fileSize) }}</span>
+            </div>
+            <el-progress :percentage="task.progress" :status="task.status === 'success' ? 'success' : (task.status === 'error' || task.status === 'cancelled') ? 'exception' : ''" :stroke-width="6" :show-text="false"></el-progress>
+            <div class="task-footer">
+              <span class="task-status-text">{{ task.statusText }}</span>
+              <span class="task-percent">{{ task.progress }}%</span>
+            </div>
+            <div class="task-actions" v-if="task.status !== 'success' && task.status !== 'cancelled'">
+              <el-button v-if="task.status === 'uploading'" size="mini" type="warning" @click="pauseTask(task)" circle><i class="fas fa-pause"></i></el-button>
+              <el-button v-if="task.status === 'paused'" size="mini" type="success" @click="resumeTask(task)" circle><i class="fas fa-play"></i></el-button>
+              <el-button v-if="task.status === 'queued' || task.status === 'paused'" size="mini" type="danger" @click="cancelTask(task)" circle><i class="fas fa-times"></i></el-button>
+              <el-button v-if="task.status === 'queued'" size="mini" type="info" @click="moveTaskUp(idx)" circle><i class="fas fa-arrow-up"></i></el-button>
+              <el-button v-if="task.status === 'queued'" size="mini" type="info" @click="moveTaskDown(idx)" circle><i class="fas fa-arrow-down"></i></el-button>
+            </div>
+          </div>
+        </div>
+        <div class="upload-panel-footer" v-if="uploadTasks.length > 0">
+          <el-button size="mini" @click="copyAllLinks" v-if="uploadSuccessCount > 0">复制全部链接</el-button>
+          <el-button size="mini" type="warning" @click="pauseAll" v-if="hasUploadingTasks">全部暂停</el-button>
+          <el-button size="mini" type="success" @click="resumeAll" v-if="hasPausedTasks">全部恢复</el-button>
+          <el-button size="mini" type="danger" @click="cancelAll" v-if="hasActiveUploads">全部取消</el-button>
+          <el-button size="mini" type="primary" @click="clearCompleted" v-if="uploadSuccessCount > 0">清空已完成</el-button>
+        </div>
+      </div>
+    </el-drawer>
+
+    <!-- Footer -->
+    <div class="footer">
+      基于 <a href="https://github.com/cf-pages/Telegraph-Image" target="_blank" rel="noopener noreferrer">Telegraph-Image</a>
+    </div>
+
+    <!-- Hidden inputs -->
+    <input type="file" ref="fileInput" style="display:none;" multiple @change="uploadFiles">
+    <input type="file" ref="folderInput" style="display:none;" webkitdirectory multiple @change="uploadFiles">
   </div>
-</body>
-<!-- import Vue before Element -->
-<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"
-  integrity="sha256-kXTEJcRFN330VirZFl6gj9+UM6gIKW195fYZeR3xDhc=" crossorigin="anonymous"></script>
-<!-- import JavaScript -->
-<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"
-  integrity="sha256-OFVFYfqhQ9nDnKh+NfIsefpy/fnjTwkK909ZYgo45nw=" crossorigin="anonymous"></script>
-<script>
-  var app = new Vue({
-    el: '#app',
-    data: {
-      Number: 0,
-      WhiteList: 0,
-        BlackList: 0,
-        showLogoutButton: false,
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        baseURL: location.origin,
         tableData: [],
         nextCursor: null,
-      dialogFormVisible: false,
-      formLabelWidth: '120px',
-      form: {
-        name: '',
-        id: ''
-      },
-      search: '',
-      password: '123456',
-      searchTimer: null
-    },
-    methods: {
-      handleBlock(index, key) {
-        console.log(key);
-        if (confirm("确认加入黑名单吗?")) {
-          console.log("Yes")
-          var requestOptions = {
-            method: 'GET',
-            redirect: 'follow',
-            //include authorization credientials
-            credentials: 'include'
-          };
-
-          fetch("./api/manage/block/" + key, requestOptions)
-            .then(response => response.text())
-            .then(result => {
-              console.log(result);
-              this.tableData[index].metadata = result;
-            })
-            .catch(error => { alert("An error occurred while synchronizing data with the server, please check the network connection"); console.log('error', error) });
-
-        } else {
-          console.log("No")
+        search: '',
+        searchTimer: null,
+        currentPage: 1,
+        pageSize: 30,
+        sortOption: 'dateDesc',
+        filterOption: 'all',
+        fileType: 'all',
+        viewMode: 'grid',
+        statsCollapsed: false,
+        showUploadPanel: false,
+        uploadTasks: [],
+        taskIdCounter: 0,
+        showDragOverlay: false,
+        dragCounter: 0,
+        fileConfig: {
+          image: ['jpg','jpeg','png','gif','webp','bmp','tiff','ico','svg'],
+          video: ['mp4','webm','ogg','avi','mov','wmv','flv','mkv'],
+          audio: ['mp3','wav','ogg','flac','aac','m4a','wma'],
         }
       },
-      handleDelete(index, key) {
-        console.log(key);
-        if (confirm("确认删除该条记录吗?")) {
-          console.log("Yes")
-          var requestOptions = {
-            method: 'GET',
-            redirect: 'follow',
-            //include authorization credientials
-            credentials: 'include'
-          };
-
-          fetch("./api/manage/delete/" + key, requestOptions)
-            .then(response => response.text())
-            .then(result => { console.log(result); this.tableData.remove(index); })
-            .catch(error => { alert("An error occurred while synchronizing data with the server, please check the network connection"); console.log('error', error) });
-
-        } else {
-          console.log("No")
+      computed: {
+        fileStats() {
+          let stats = { image: 0, video: 0, audio: 0, document: 0, liked: 0, blocked: 0, whitelisted: 0 };
+          this.tableData.forEach(f => {
+            const ext = f.name.split('.').pop().toLowerCase();
+            if (this.fileConfig.image.includes(ext)) stats.image++;
+            else if (this.fileConfig.video.includes(ext)) stats.video++;
+            else if (this.fileConfig.audio.includes(ext)) stats.audio++;
+            else stats.document++;
+            if (f.metadata?.liked) stats.liked++;
+            if (f.metadata?.ListType === 'Block') stats.blocked++;
+            if (f.metadata?.ListType === 'White') stats.whitelisted++;
+          });
+          return stats;
+        },
+        filteredTableData() {
+          return this.tableData.filter(data => {
+            const s = this.search.toLowerCase();
+            const matchSearch = !s || (data.metadata?.fileName || '').toLowerCase().includes(s) || data.name.toLowerCase().includes(s);
+            const matchFilter = {
+              all: true,
+              favorites: data.metadata?.liked,
+              blocked: data.metadata?.ListType === 'Block',
+              unblocked: data.metadata?.ListType === 'White',
+            }[this.filterOption] ?? true;
+            const ext = data.name.split('.').pop().toLowerCase();
+            const matchType = this.fileType === 'all' ? true :
+              this.fileType === 'document' ?
+                !this.fileConfig.image.includes(ext) && !this.fileConfig.video.includes(ext) && !this.fileConfig.audio.includes(ext) :
+                this.fileConfig[this.fileType]?.includes(ext);
+            return matchSearch && matchFilter && matchType;
+          });
+        },
+        paginatedTableData() {
+          return this.sortData(this.filteredTableData).slice((this.currentPage - 1) * this.pageSize, this.currentPage * this.pageSize);
+        },
+        selectedCount() {
+          return this.tableData.filter(f => f.selected).length;
+        },
+        uploadSuccessCount() {
+          return this.uploadTasks.filter(t => t.status === 'success').length;
+        },
+        uploadFailedCount() {
+          return this.uploadTasks.filter(t => t.status === 'error').length;
+        },
+        hasActiveUploads() {
+          return this.uploadTasks.some(t => t.status === 'uploading' || t.status === 'queued');
+        },
+        hasUploadingTasks() {
+          return this.uploadTasks.some(t => t.status === 'uploading');
+        },
+        hasPausedTasks() {
+          return this.uploadTasks.some(t => t.status === 'paused');
         }
       },
-      handleWhite(index, key) {
-        console.log(key);
-        if (confirm("确认加入白名单吗?")) {
-          console.log("Yes")
-          var requestOptions = {
-            method: 'GET',
-            redirect: 'follow',
-            //include authorization credientials
-            credentials: 'include'
-          };
-          fetch("./api/manage/white/" + key, requestOptions)
-            .then(response => response.text())
-            .then(result => { console.log(result); this.tableData[index].metadata = result; })
-            .catch(error => { alert("An error occurred while synchronizing data with the server, please check the network connection"); console.log('error', error) });
-
-        } else {
-          console.log("No")
-        }
-
+      watch: {
+        viewMode(val) { localStorage.setItem('adminViewMode', val); },
+        sortOption(val) { localStorage.setItem('adminSort', val); },
+        filterOption(val) { localStorage.setItem('adminFilter', val); },
+        fileType(val) { localStorage.setItem('adminFileType', val); }
       },
-      handleLogout() {
-        window.location.href = "./api/manage/logout";
-      },
-      handleCopy(index, key) {
-        const text = `${document.location.origin}/file/${key}`;
-        if (navigator.clipboard) {
-          // clipboard api 复制
-          navigator.clipboard.writeText(text);
-        } else {
-          const textarea = document.createElement('textarea');
-          document.body.appendChild(textarea);
-          // 隐藏此输入框
-          textarea.style.position = 'fixed';
-          textarea.style.clip = 'rect(0 0 0 0)';
-          textarea.style.top = '10px';
-          // 赋值
-          textarea.value = text;
-          // 选中
-          textarea.select();
-          // 复制
-          document.execCommand('copy', true);
-          // 移除输入框
-          document.body.removeChild(textarea);
-        }
-        this.$message({
-          message: '复制文件链接成功~',
-          type: 'success'
-        });
-      },
-      handleSearch() {
-        clearTimeout(this.searchTimer);
-        this.searchTimer = setTimeout(() => {
-          this.tableData = [];
-          this.nextCursor = null;
-          const opts = { method: 'GET', redirect: 'follow', credentials: 'include' };
-          const base = this.search
-            ? `./api/manage/list?limit=100&prefix=${encodeURIComponent(this.search)}`
-            : `./api/manage/list?limit=100`;
-          fetch(base, opts)
+      methods: {
+        toggleTheme() {
+          document.documentElement.classList.toggle('dark');
+          localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        },
+        handleSearch() {
+          clearTimeout(this.searchTimer);
+          this.searchTimer = setTimeout(() => {
+            if (this.search) {
+              this.fetchList(`./api/manage/list?limit=100&prefix=${encodeURIComponent(this.search)}`);
+            } else {
+              this.fetchList('./api/manage/list?limit=100');
+            }
+          }, 300);
+        },
+        fetchList(url) {
+          fetch(url, { method: 'GET', credentials: 'include' })
             .then(r => r.json())
             .then(result => {
-              this.tableData = result.keys || [];
+              const files = result.keys || [];
+              this.tableData = files.map(f => ({
+                ...f,
+                selected: false,
+                metadata: {
+                  ...f.metadata,
+                  liked: f.metadata?.liked ?? false,
+                  fileName: f.metadata?.fileName ?? f.name,
+                  fileSize: f.metadata?.fileSize ?? 0
+                }
+              }));
               this.nextCursor = result.list_complete ? null : result.cursor;
-              this.Number = this.tableData.length;
             })
-            .catch(() => alert("搜索失败，请检查网络"));
-        }, 300);
+            .catch(() => this.$message.error('加载文件列表失败，请检查网络连接'));
+        },
+        loadMore() {
+          const url = this.nextCursor
+            ? `./api/manage/list?cursor=${encodeURIComponent(this.nextCursor)}`
+            : `./api/manage/list?limit=100`;
+          fetch(url, { method: 'GET', credentials: 'include' })
+            .then(r => r.json())
+            .then(result => {
+              const files = result.keys || [];
+              const mapped = files.map(f => ({
+                ...f,
+                selected: false,
+                metadata: {
+                  ...f.metadata,
+                  liked: f.metadata?.liked ?? false,
+                  fileName: f.metadata?.fileName ?? f.name,
+                  fileSize: f.metadata?.fileSize ?? 0
+                }
+              }));
+              this.tableData = this.tableData.concat(mapped);
+              this.nextCursor = result.list_complete ? null : result.cursor;
+            })
+            .catch(() => this.$message.error('加载更多文件失败'));
+        },
+        sortData(data) {
+          const sorted = [...data];
+          if (this.sortOption === 'nameAsc') return sorted.sort((a, b) => a.name.localeCompare(b.name));
+          if (this.sortOption === 'sizeDesc') return sorted.sort((a, b) => (b.metadata?.fileSize || 0) - (a.metadata?.fileSize || 0));
+          return sorted.sort((a, b) => (b.metadata?.TimeStamp || 0) - (a.metadata?.TimeStamp || 0));
+        },
+        formatFileSize(bytes) {
+          if (!bytes || bytes === 0) return '0 B';
+          const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        },
+        isImage(name) { return this.fileConfig.image.includes(name.split('.').pop().toLowerCase()); },
+        isVideo(name) { return this.fileConfig.video.includes(name.split('.').pop().toLowerCase()); },
+        isAudio(name) { return this.fileConfig.audio.includes(name.split('.').pop().toLowerCase()); },
+        getFileIcon(name) {
+          const ext = name.split('.').pop().toLowerCase();
+          const map = {
+            pdf: 'fas fa-file-pdf', doc: 'fas fa-file-word', docx: 'fas fa-file-word',
+            xls: 'fas fa-file-excel', xlsx: 'fas fa-file-excel', csv: 'fas fa-file-excel',
+            ppt: 'fas fa-file-powerpoint', pptx: 'fas fa-file-powerpoint',
+            zip: 'fas fa-file-zipper', rar: 'fas fa-file-zipper', '7z': 'fas fa-file-zipper',
+            txt: 'fas fa-file-lines', md: 'fas fa-file-lines',
+            js: 'fas fa-file-code', ts: 'fas fa-file-code', py: 'fas fa-file-code', html: 'fas fa-file-code', css: 'fas fa-file-code',
+          };
+          return map[ext] || 'fas fa-file';
+        },
+        toggleSelectItem(item) {
+          item.selected = !item.selected;
+        },
+        onSelectChange() {},
+        selectAllInPage() {
+          const sel = !this.paginatedTableData.every(f => f.selected);
+          this.paginatedTableData.forEach(f => f.selected = sel);
+        },
+        toggleLike(item) {
+          const idx = this.tableData.findIndex(f => f.name === item.name);
+          if (idx === -1) return;
+          this.tableData[idx].metadata.liked = !this.tableData[idx].metadata.liked;
+          fetch(`./api/manage/toggleLike/${item.name}`, { method: 'GET', credentials: 'include' })
+            .then(r => r.json())
+            .then(result => {
+              if (!result.success) {
+                this.tableData[idx].metadata.liked = !this.tableData[idx].metadata.liked;
+                this.$message.error('更新收藏状态失败');
+              } else {
+                this.$message.success(this.tableData[idx].metadata.liked ? '收藏成功' : '取消收藏');
+              }
+            })
+            .catch(() => {
+              this.tableData[idx].metadata.liked = !this.tableData[idx].metadata.liked;
+              this.$message.error('同步服务器失败');
+            });
+        },
+        handleCopy(item) {
+          const link = `${this.baseURL}/file/${item.name}`;
+          (navigator.clipboard?.writeText(link) || this.copyFallback(link))
+            .then(() => this.$message.success('复制链接成功'))
+            .catch(() => this.$message.error('复制失败'));
+        },
+        copyFallback(text) {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        },
+        handleBatchCopy() {
+          const links = this.tableData.filter(f => f.selected).map(f => `${this.baseURL}/file/${f.name}`).join('\n');
+          (navigator.clipboard?.writeText(links) || this.copyFallback(links))
+            .then(() => this.$message.success(`已复制 ${this.selectedCount} 个链接`));
+        },
+        handleDelete(item) {
+          this.$confirm('此操作将永久删除该文件, 是否继续?', '提示', { type: 'warning' })
+            .then(() => {
+              fetch(`./api/manage/delete/${item.name}`, { method: 'GET', credentials: 'include' })
+                .then(r => {
+                  if (r.ok) {
+                    const idx = this.tableData.findIndex(f => f.name === item.name);
+                    if (idx !== -1) this.tableData.splice(idx, 1);
+                    this.$message.success('删除成功');
+                  } else {
+                    this.$message.error('删除失败');
+                  }
+                })
+                .catch(() => this.$message.error('删除失败，请检查网络'));
+            })
+            .catch(() => {});
+        },
+        handleBatchDelete() {
+          const selected = this.tableData.filter(f => f.selected);
+          if (!selected.length) return;
+          this.$confirm(`此操作将永久删除 ${selected.length} 个文件, 是否继续?`, '提示', { type: 'warning' })
+            .then(() => {
+              Promise.all(selected.map(f => fetch(`./api/manage/delete/${f.name}`, { method: 'GET', credentials: 'include' })))
+                .then(results => {
+                  const okCount = results.filter(r => r.ok).length;
+                  results.forEach((r, i) => {
+                    if (r.ok) {
+                      const idx = this.tableData.findIndex(f => f.name === selected[i].name);
+                      if (idx !== -1) this.tableData.splice(idx, 1);
+                    }
+                  });
+                  this.$message.success(`成功删除 ${okCount} 个文件`);
+                })
+                .catch(() => this.$message.error('批量删除失败'));
+            })
+            .catch(() => {});
+        },
+        handleBatchBlock(type) {
+          const selected = this.tableData.filter(f => f.selected);
+          if (!selected.length) return;
+          const name = type === 'Block' ? '黑名单' : '白名单';
+          this.$confirm(`确定要将 ${selected.length} 个文件加入${name}吗?`, '提示', { type: 'warning' })
+            .then(() => {
+              Promise.all(selected.map(f => fetch(`./api/manage/${type.toLowerCase()}/${f.name}`, { method: 'GET', credentials: 'include' })))
+                .then(results => {
+                  results.forEach((r, i) => {
+                    if (r.ok) {
+                      const idx = this.tableData.findIndex(f => f.name === selected[i].name);
+                      if (idx !== -1) this.tableData[idx].metadata.ListType = type;
+                    }
+                  });
+                  this.$message.success(`批量加入${name}成功`);
+                })
+                .catch(() => this.$message.error('操作失败'));
+            })
+            .catch(() => {});
+        },
+        handleEditName(item) {
+          this.$prompt('', '修改文件名', {
+            inputValue: item.metadata?.fileName || item.name,
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            inputValidator: (v) => { if (!v) return '文件名不能为空'; if (v.length > 64) return '不能超过64个字符'; return true; }
+          }).then(({ value }) => {
+            fetch(`./api/manage/editName/${item.name}?newName=${encodeURIComponent(value)}`, { method: 'GET', credentials: 'include' })
+              .then(r => r.json())
+              .then(result => {
+                if (result.success) {
+                  item.metadata.fileName = value;
+                  this.$message.success('文件名修改成功');
+                } else {
+                  this.$message.error('文件名修改失败');
+                }
+              })
+              .catch(() => this.$message.error('修改失败，请检查网络'));
+          }).catch(() => {});
+        },
+        previewImage(item) {
+          if (this.isImage(item.name)) {
+            this.$alert(`<img src="/file/${item.name}" style="max-width:100%;border-radius:8px;">`, item.metadata?.fileName || item.name, {
+              dangerouslyUseHTMLString: true,
+              confirmButtonText: '关闭'
+            });
+          }
+        },
+        // 上传相关
+        handleUpload() { this.$refs.fileInput.click(); },
+        handleFolderUpload() { this.$refs.folderInput.click(); },
+        async uploadFiles(event) {
+          const files = Array.from(event.target.files || []);
+          if (!files.length) return;
+          const valid = files.filter(f => f.size <= 20 * 1024 * 1024);
+          const invalid = files.filter(f => f.size > 20 * 1024 * 1024);
+          if (invalid.length) this.$message.error(`${invalid.length} 个文件超过20MB限制`);
+          if (!valid.length) { event.target.value = ''; return; }
+          try {
+            await this.$confirm(`确定要上传这 ${valid.length} 个文件吗?`, '提示', { type: 'warning' });
+            this.showUploadPanel = true;
+            const tasks = valid.map(file => ({
+              id: ++this.taskIdCounter, file, fileName: file.name, fileSize: file.size,
+              status: 'queued', progress: 0, statusText: '排队中', src: null, error: null, xhr: null
+            }));
+            this.uploadTasks = this.uploadTasks.concat(tasks);
+            let successCount = 0;
+            const upload = async (task) => {
+              task.status = 'uploading';
+              task.statusText = '上传中';
+              task.progress = 0;
+              return new Promise((resolve) => {
+                const formData = new FormData();
+                formData.append('file', task.file);
+                const xhr = new XMLHttpRequest();
+                task.xhr = xhr;
+                xhr.upload.onprogress = (e) => { if (e.lengthComputable) task.progress = Math.round((e.loaded / e.total) * 90); };
+                xhr.onload = () => {
+                  try {
+                    const res = JSON.parse(xhr.responseText);
+                    if (xhr.status === 200 && res[0]?.src) {
+                      task.progress = 100; task.status = 'success'; task.statusText = '上传成功'; task.src = res[0].src;
+                      this.tableData.unshift({ name: res[0].src.replace(/^\/file\//, ''), selected: false, metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName } });
+                      successCount++; resolve(true);
+                    } else {
+                      task.status = 'error'; task.statusText = res[0]?.error || '上传失败'; task.error = res[0]?.error || '上传失败'; task.progress = 0; resolve(false);
+                    }
+                  } catch { task.status = 'error'; task.statusText = '解析失败'; task.error = '解析失败'; task.progress = 0; resolve(false); }
+                };
+                xhr.onerror = () => { task.status = 'error'; task.statusText = '网络错误'; task.error = '网络错误'; task.progress = 0; resolve(false); };
+                xhr.open('POST', `${this.baseURL}/upload`);
+                xhr.withCredentials = true;
+                xhr.send(formData);
+              });
+            };
+            for (let i = 0; i < tasks.length; i += 3) {
+              await Promise.all(tasks.slice(i, i + 3).map(upload));
+            }
+            this.$message.success(`上传完成：成功 ${successCount} 个，失败 ${tasks.length - successCount} 个`);
+          } catch { this.$message.info('已取消上传'); }
+          event.target.value = '';
+        },
+        pauseTask(task) { if (task.xhr && task.status === 'uploading') { task.xhr.abort(); task.status = 'paused'; task.statusText = '已暂停'; } },
+        resumeTask(task) { if (task.status === 'paused') { task.status = 'queued'; task.statusText = '排队中'; this.processQueue(); } },
+        cancelTask(task) { if (task.xhr && task.status === 'uploading') task.xhr.abort(); task.status = 'cancelled'; task.statusText = '已取消'; task.progress = 0; this.processQueue(); },
+        pauseAll() { this.uploadTasks.filter(t => t.status === 'uploading').forEach(t => this.pauseTask(t)); },
+        resumeAll() { this.uploadTasks.filter(t => t.status === 'paused').forEach(t => this.resumeTask(t)); },
+        cancelAll() { this.uploadTasks.filter(t => t.status === 'uploading' || t.status === 'queued').forEach(t => this.cancelTask(t)); },
+        moveTaskUp(idx) { if (idx > 0 && this.uploadTasks[idx].status === 'queued' && this.uploadTasks[idx - 1].status === 'queued') { [this.uploadTasks[idx], this.uploadTasks[idx - 1]] = [this.uploadTasks[idx - 1], this.uploadTasks[idx]]; } },
+        moveTaskDown(idx) { if (idx < this.uploadTasks.length - 1 && this.uploadTasks[idx].status === 'queued' && this.uploadTasks[idx + 1].status === 'queued') { [this.uploadTasks[idx], this.uploadTasks[idx + 1]] = [this.uploadTasks[idx + 1], this.uploadTasks[idx]]; } },
+        async processQueue() {
+          const queued = this.uploadTasks.filter(t => t.status === 'queued');
+          if (!queued.length) return;
+          let successCount = 0;
+          const upload = async (task) => {
+            task.status = 'uploading'; task.statusText = '上传中'; task.progress = 0;
+            return new Promise((resolve) => {
+              const formData = new FormData(); formData.append('file', task.file);
+              const xhr = new XMLHttpRequest(); task.xhr = xhr;
+              xhr.upload.onprogress = (e) => { if (e.lengthComputable) task.progress = Math.round((e.loaded / e.total) * 90); };
+              xhr.onload = () => {
+                try {
+                  const res = JSON.parse(xhr.responseText);
+                  if (xhr.status === 200 && res[0]?.src) {
+                    task.progress = 100; task.status = 'success'; task.statusText = '上传成功'; task.src = res[0].src;
+                    this.tableData.unshift({ name: res[0].src.replace(/^\/file\//, ''), selected: false, metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName } });
+                    successCount++; resolve(true);
+                  } else { task.status = 'error'; task.statusText = res[0]?.error || '上传失败'; task.error = res[0]?.error || '上传失败'; task.progress = 0; resolve(false); }
+                } catch { task.status = 'error'; task.statusText = '解析失败'; task.error = '解析失败'; task.progress = 0; resolve(false); }
+              };
+              xhr.onerror = () => { task.status = 'error'; task.statusText = '网络错误'; task.error = '网络错误'; task.progress = 0; resolve(false); };
+              xhr.onabort = () => { resolve(false); };
+              xhr.open('POST', `${this.baseURL}/upload`); xhr.withCredentials = true; xhr.send(formData);
+            });
+          };
+          for (let i = 0; i < queued.length; i += 3) { await Promise.all(queued.slice(i, i + 3).map(upload)); }
+        },
+        async retryFailed() {
+          const failed = this.uploadTasks.filter(t => t.status === 'error');
+          if (!failed.length) return;
+          failed.forEach(t => { t.status = 'queued'; t.statusText = '排队中'; t.progress = 0; t.error = null; t.src = null; });
+          await this.processQueue();
+          this.$message.success('重试完成');
+        },
+        copyAllLinks() {
+          const links = this.uploadTasks.filter(t => t.status === 'success' && t.src).map(t => `${this.baseURL}${t.src}`).join('\n');
+          if (!links) { this.$message.warning('没有可复制的链接'); return; }
+          (navigator.clipboard?.writeText(links) || this.copyFallback(links))
+            .then(() => this.$message.success('已复制全部链接'));
+        },
+        clearCompleted() { this.uploadTasks = this.uploadTasks.filter(t => t.status !== 'success'); },
+        handleDrawerClose(done) {
+          if (this.hasActiveUploads) { this.$confirm('有文件正在上传，确定关闭吗？', '提示', { type: 'warning' }).then(() => done()).catch(() => {}); }
+          else { done(); }
+        },
+        onDragOver() { this.dragCounter++; this.showDragOverlay = true; },
+        onDragLeave() { this.dragCounter--; if (this.dragCounter <= 0) { this.dragCounter = 0; this.showDragOverlay = false; } },
+        async onDrop(event) {
+          this.dragCounter = 0; this.showDragOverlay = false;
+          const files = [];
+          const items = event.dataTransfer.items;
+          if (items) {
+            const entries = [];
+            for (let i = 0; i < items.length; i++) { const entry = items[i].webkitGetAsEntry?.(); if (entry) entries.push(entry); }
+            if (entries.length) await this.readEntries(entries, files);
+          }
+          if (!files.length) Array.from(event.dataTransfer.files || []).forEach(f => files.push(f));
+          if (files.length) this.processFilesForUpload(files);
+        },
+        async readEntries(entries, files) {
+          for (const entry of entries) {
+            if (entry.isFile) { const file = await new Promise(resolve => entry.file(resolve)); file._relativePath = entry.fullPath; files.push(file); }
+            else if (entry.isDirectory) {
+              const reader = entry.createReader(); const all = [];
+              const readBatch = () => new Promise(resolve => { reader.readEntries(entries => { if (entries.length) { all.push(...entries); readBatch().then(resolve); } else { resolve(); } }); });
+              await readBatch(); await this.readEntries(all, files);
+            }
+          }
+        },
+        async processFilesForUpload(files) {
+          const valid = files.filter(f => f.size <= 20 * 1024 * 1024);
+          const invalid = files.filter(f => f.size > 20 * 1024 * 1024);
+          if (invalid.length) this.$message.error(`${invalid.length} 个文件超过20MB限制`);
+          if (!valid.length) return;
+          try {
+            await this.$confirm(`确定要上传这 ${valid.length} 个文件吗?`, '提示', { type: 'warning' });
+            this.showUploadPanel = true;
+            const tasks = valid.map(file => ({
+              id: ++this.taskIdCounter, file, fileName: file.name, fileSize: file.size,
+              status: 'queued', progress: 0, statusText: '排队中', src: null, error: null, xhr: null
+            }));
+            this.uploadTasks = this.uploadTasks.concat(tasks);
+            await this.processQueue();
+            this.$message.success(`上传完成：成功 ${this.uploadTasks.filter(t=>t.status==='success').length} 个，失败 ${tasks.filter(t=>t.status==='error').length} 个`);
+          } catch { this.$message.info('已取消上传'); }
+        }
       },
-      loadMore() {
-        const opts = { method: 'GET', redirect: 'follow', credentials: 'include' };
-        const base = this.search
-          ? `./api/manage/list?limit=100&prefix=${encodeURIComponent(this.search)}`
-          : `./api/manage/list?limit=100`;
-        const url = this.nextCursor
-          ? `${base}&cursor=${encodeURIComponent(this.nextCursor)}`
-          : base;
-
-        fetch(url, opts)
-          .then(r => r.json())
+      mounted() {
+        // Theme
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches || localStorage.getItem('theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+        // Restore preferences
+        this.viewMode = localStorage.getItem('adminViewMode') || 'grid';
+        this.sortOption = localStorage.getItem('adminSort') || 'dateDesc';
+        this.filterOption = localStorage.getItem('adminFilter') || 'all';
+        this.fileType = localStorage.getItem('adminFileType') || 'all';
+        // Check auth
+        fetch('./api/manage/check', { method: 'GET', credentials: 'include' })
+          .then(r => r.text())
           .then(result => {
-            this.tableData = this.tableData.concat(result.keys || []);
-            this.nextCursor = result.list_complete ? null : result.cursor;
-            this.Number = this.tableData.length;
+            if (result === 'false') window.location.href = './api/manage/login';
           })
-          .catch(() => alert("同步失败，请检查网络"));
-      },
-    },
-
-    mounted() {
-      //check if the user is logged in
-      //read the basic auth credientials from the browser
-      var requestOptions = {
-        method: 'GET',
-        redirect: 'follow',
-        //include authorization credientials
-        credentials: 'include'
-      };
-      fetch("./api/manage/check", requestOptions)
-        .then(response => response.text())
-        .then(result => {
-          console.log(result);
-          if (result == "true") {
-            this.showLogoutButton = true;
-          } else if (result == "Not using basic auth.") {
-
-          }
-          else {
-            window.location.href = "./api/manage/login";
-          }
-        })
-        .catch(error => { alert("An error occurred while synchronizing data with the server, please check the network connection"); console.log('error', error) });
-
-
-
-      Array.prototype.remove = function (from, to) {
-        var rest = this.slice((to || from) + 1 || this.length);
-        this.length = from < 0 ? this.length + from : from;
-        return this.push.apply(this, rest);
-      };
-      var requestOptions = {
-        method: 'GET',
-        redirect: 'follow',
-        //include authorization credientials
-        credentials: 'include'
-
-      };
-
-
-        fetch("./api/manage/list?limit=100", requestOptions)
-        //判断是否需要登录
-        .then(response => {
-          if (response.status == 401) {
-            alert("请先登录");
-            window.location.href = "./api/manage/login";
-          }
-          else {
-            return response;
-          }
-        })
-        .then(response => response.json())
-        .then(result => {
-          this.tableData = result.keys || [];
-          this.nextCursor = result.list_complete ? null : result.cursor;
-          console.log(result);
-          this.Number = this.tableData.length;
-        })
-        .catch(error => { alert("An error occurred while synchronizing data with the server, please check the network connection"); console.log('error', error) });
-
-    }
-  })
-
-</script><!-- Hotjar Tracking Code -->
-<script>
-    (function (h, o, t, j, a, r) {
-      h.hj = h.hj || function () { (h.hj.q = h.hj.q || []).push(arguments) };
-      h._hjSettings = { hjid: 2531461, hjsv: 6 };
-      a = o.getElementsByTagName('head')[0];
-      r = o.createElement('script'); r.async = 1;
-      r.src = t + h._hjSettings.hjid + j + h._hjSettings.hjsv;
-      a.appendChild(r);
-    })(window, document, 'https://static.hotjar.com/c/hotjar-', '.js?sv=');
-</script>
-<script type="text/javascript">
-  (function (c, l, a, r, i, t, y) {
-    c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments) };
-    t = l.createElement(r); t.async = 1; t.src = "https://www.clarity.ms/tag/" + i;
-    y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
-  })(window, document, "clarity", "script", "7t5ai7agat");
-</script>
-
+          .catch(() => {});
+        // Load data
+        this.fetchList('./api/manage/list?limit=100');
+      }
+    });
+  </script>
+</body>
 </html>
