@@ -1,0 +1,291 @@
+import { errorHandling, telemetryData } from "./utils/middleware";
+
+const UPLOAD_PAGE_HTML = `<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegraph-Image | 上传</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#333;display:flex;flex-direction:column;align-items:center;padding:20px}
+    .container{max-width:800px;width:100%;margin:0 auto}
+    .header{text-align:center;margin-bottom:30px;color:white}
+    .header h1{font-size:2rem;margin-bottom:8px;text-shadow:0 2px 4px rgba(0,0,0,0.2)}
+    .header p{opacity:0.9;font-size:0.95rem}
+    .upload-area{background:rgba(255,255,255,0.95);border-radius:16px;padding:40px 30px;box-shadow:0 10px 40px rgba(0,0,0,0.1);transition:all 0.3s ease}
+    .drop-zone{border:3px dashed #d0d7de;border-radius:12px;padding:50px 20px;text-align:center;cursor:pointer;transition:all 0.3s ease;background:#fafbfc}
+    .drop-zone:hover,.drop-zone.dragover{border-color:#667eea;background:#f0f4ff;transform:scale(1.01)}
+    .drop-zone.dragover{animation:pulse 1s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.8}}
+    .drop-zone-icon{font-size:48px;margin-bottom:15px;color:#667eea}
+    .drop-zone-text{font-size:1.1rem;color:#555;margin-bottom:10px}
+    .drop-zone-hint{font-size:0.85rem;color:#999}
+    .file-input{display:none}
+    .upload-controls{display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:10px}
+    .concurrency-control{display:flex;align-items:center;gap:8px;font-size:0.9rem;color:#666}
+    .concurrency-control select{padding:6px 12px;border:1px solid #d0d7de;border-radius:6px;background:white;font-size:0.9rem;cursor:pointer}
+    .btn{padding:10px 24px;border:none;border-radius:8px;font-size:0.95rem;cursor:pointer;transition:all 0.2s ease;font-weight:500}
+    .btn-primary{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;box-shadow:0 4px 12px rgba(102,126,234,0.4)}
+    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(102,126,234,0.5)}
+    .btn-primary:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+    .btn-secondary{background:#f0f0f0;color:#555}
+    .btn-secondary:hover{background:#e0e0e0}
+    .file-list{margin-top:20px;display:none}
+    .file-list.active{display:block}
+    .file-list-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee}
+    .file-list-title{font-size:1rem;font-weight:600;color:#333}
+    .file-list-summary{font-size:0.85rem;color:#999}
+    .file-item{display:flex;align-items:center;padding:12px 0;border-bottom:1px solid #f5f5f5;gap:12px}
+    .file-item:last-child{border-bottom:none}
+    .file-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:#f0f4ff;color:#667eea}
+    .file-icon.success{background:#e8f5e9;color:#4caf50}
+    .file-icon.error{background:#ffebee;color:#f44336}
+    .file-info{flex:1;min-width:0}
+    .file-name{font-size:0.9rem;font-weight:500;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
+    .file-meta{display:flex;justify-content:space-between;align-items:center}
+    .file-size{font-size:0.8rem;color:#999}
+    .file-progress-text{font-size:0.8rem;color:#666}
+    .progress-bar-container{width:100%;height:6px;background:#f0f0f0;border-radius:3px;margin-top:6px;overflow:hidden}
+    .progress-bar{height:100%;background:linear-gradient(90deg,#667eea 0%,#764ba2 100%);border-radius:3px;transition:width 0.2s ease}
+    .progress-bar.success{background:#4caf50}
+    .progress-bar.error{background:#f44336}
+    .file-status{font-size:0.8rem;color:#999;flex-shrink:0;min-width:60px;text-align:right}
+    .file-status.success{color:#4caf50}
+    .file-status.error{color:#f44336}
+    .result-area{margin-top:20px;display:none}
+    .result-area.active{display:block}
+    .result-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .result-title{font-size:1rem;font-weight:600;color:#333}
+    .result-links{background:#f8f9fa;border-radius:8px;padding:12px;max-height:200px;overflow-y:auto;font-family:monospace;font-size:0.85rem;line-height:1.6;word-break:break-all}
+    .result-links a{color:#667eea;text-decoration:none}
+    .result-links a:hover{text-decoration:underline}
+    .stats-bar{display:flex;justify-content:center;gap:30px;margin-top:15px;padding:12px;background:rgba(255,255,255,0.1);border-radius:10px;color:white;font-size:0.9rem}
+    .stats-item{display:flex;align-items:center;gap:6px}
+    .stats-dot{width:8px;height:8px;border-radius:50%}
+    .stats-dot.success{background:#4caf50}
+    .stats-dot.error{background:#f44336}
+    .stats-dot.pending{background:#ffeb3b}
+    .footer{margin-top:30px;text-align:center;color:rgba(255,255,255,0.7);font-size:0.85rem}
+    .footer a{color:rgba(255,255,255,0.9);text-decoration:none}
+    .footer a:hover{text-decoration:underline}
+    @media(max-width:600px){body{padding:15px}.header h1{font-size:1.5rem}.upload-area{padding:20px 15px}.drop-zone{padding:30px 15px}.drop-zone-icon{font-size:36px}.upload-controls{flex-direction:column;align-items:stretch}.btn{width:100%;text-align:center}.stats-bar{flex-direction:column;gap:8px;align-items:center}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Telegraph-Image</h1>
+      <p>免费图床 · 多文件上传</p>
+    </div>
+    <div class="upload-area">
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        </div>
+        <div class="drop-zone-text">拖拽文件到此处，或点击选择文件</div>
+        <div class="drop-zone-hint">支持图片、视频、音频、文档，单文件最大 20MB</div>
+        <input type="file" id="fileInput" class="file-input" multiple>
+      </div>
+      <div class="upload-controls">
+        <div class="concurrency-control">
+          <label for="concurrency">并发数:</label>
+          <select id="concurrency"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10</option></select>
+        </div>
+        <div>
+          <button class="btn btn-secondary" id="clearBtn" style="display:none;margin-right:8px;">清空</button>
+          <button class="btn btn-primary" id="uploadBtn" disabled>开始上传</button>
+        </div>
+      </div>
+      <div class="file-list" id="fileList">
+        <div class="file-list-header">
+          <span class="file-list-title">文件列表</span>
+          <span class="file-list-summary" id="fileSummary"></span>
+        </div>
+        <div id="fileListContent"></div>
+      </div>
+      <div class="stats-bar" id="statsBar" style="display:none;">
+        <div class="stats-item"><span class="stats-dot success"></span><span>成功: <strong id="successCount">0</strong></span></div>
+        <div class="stats-item"><span class="stats-dot error"></span><span>失败: <strong id="errorCount">0</strong></span></div>
+        <div class="stats-item"><span class="stats-dot pending"></span><span>等待: <strong id="pendingCount">0</strong></span></div>
+      </div>
+      <div class="result-area" id="resultArea">
+        <div class="result-header">
+          <span class="result-title">上传结果</span>
+          <button class="btn btn-secondary" id="copyBtn" style="padding:6px 16px;font-size:0.85rem;">复制链接</button>
+        </div>
+        <div class="result-links" id="resultLinks"></div>
+      </div>
+    </div>
+    <div class="footer">Powered By <a href="https://github.com/cf-pages/Telegraph-Image" target="_blank" rel="noopener noreferrer">Telegraph-Image</a></div>
+  </div>
+  <script>
+    const dropZone=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput'),uploadBtn=document.getElementById('uploadBtn'),clearBtn=document.getElementById('clearBtn'),fileList=document.getElementById('fileList'),fileListContent=document.getElementById('fileListContent'),fileSummary=document.getElementById('fileSummary'),statsBar=document.getElementById('statsBar'),resultArea=document.getElementById('resultArea'),resultLinks=document.getElementById('resultLinks'),copyBtn=document.getElementById('copyBtn'),concurrencySelect=document.getElementById('concurrency');
+    let selectedFiles=[],uploadTasks=[],isUploading=false;
+    const MAX_FILE_SIZE=20*1024*1024;
+    function formatFileSize(bytes){if(bytes===0)return'0 B';const k=1024,sizes=['B','KB','MB','GB'],i=Math.floor(Math.log(bytes)/Math.log(k));return parseFloat((bytes/Math.pow(k,i)).toFixed(1))+' '+sizes[i]}
+    function getFileIcon(type){if(type.startsWith('image/'))return'🖼️';if(type.startsWith('video/'))return'🎬';if(type.startsWith('audio/'))return'🎵';return'📄'}
+    function updateFileList(){if(!selectedFiles.length){fileList.classList.remove('active');clearBtn.style.display='none';uploadBtn.disabled=true;return}fileList.classList.add('active');clearBtn.style.display='inline-block';uploadBtn.disabled=false;const totalSize=selectedFiles.reduce((s,f)=>s+f.size,0);fileSummary.textContent=selectedFiles.length+' 个文件，共 '+formatFileSize(totalSize);fileListContent.innerHTML=selectedFiles.map((file,idx)=>'<div class="file-item" data-idx="'+idx+'"><div class="file-icon">'+getFileIcon(file.type)+'</div><div class="file-info"><div class="file-name" title="'+file.name+'">'+file.name+'</div><div class="file-meta"><span class="file-size">'+formatFileSize(file.size)+'</span><span class="file-status" id="status-'+idx+'">等待中</span></div><div class="progress-bar-container"><div class="progress-bar" id="progress-'+idx+'" style="width:0%"></div></div></div></div>').join('')}
+    function handleFiles(files){const valid=[],invalid=[];Array.from(files).forEach(file=>{if(file.size<=MAX_FILE_SIZE)valid.push(file);else invalid.push(file)});if(invalid.length)alert('以下文件超过 20MB，已跳过:\\n'+invalid.map(f=>f.name).join('\\n'));if(!valid.length)return;selectedFiles=selectedFiles.concat(valid);updateFileList()}
+    dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover')});
+    dropZone.addEventListener('dragleave',()=>{dropZone.classList.remove('dragover')});
+    dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('dragover');handleFiles(e.dataTransfer.files)});
+    dropZone.addEventListener('click',()=>{fileInput.click()});
+    fileInput.addEventListener('change',e=>{handleFiles(e.target.files);fileInput.value=''});
+    clearBtn.addEventListener('click',()=>{if(isUploading)return;selectedFiles=[];uploadTasks=[];updateFileList();statsBar.style.display='none';resultArea.classList.remove('active')});
+    uploadBtn.addEventListener('click',startUpload);
+    async function startUpload(){if(isUploading||!selectedFiles.length)return;isUploading=true;uploadBtn.disabled=true;clearBtn.style.display='none';statsBar.style.display='flex';resultArea.classList.remove('active');const maxConcurrent=parseInt(concurrencySelect.value);let successCount=0,errorCount=0;const links=[];uploadTasks=selectedFiles.map((file,idx)=>({file,idx,status:'queued',progress:0,xhr:null}));
+    async function uploadTask(task){task.status='uploading';updateTaskUI(task);return new Promise(resolve=>{const formData=new FormData();formData.append('file',task.file);const xhr=new XMLHttpRequest();task.xhr=xhr;xhr.upload.onprogress=e=>{if(e.lengthComputable){task.progress=Math.round((e.loaded/e.total)*90);updateTaskUI(task)}};
+    xhr.onload=()=>{try{const res=JSON.parse(xhr.responseText);if(xhr.status===200&&res[0]?.src){task.status='success';task.progress=100;links.push(location.origin+res[0].src);successCount++}else{task.status='error';task.progress=0;task.error=res[0]?.error||'上传失败';errorCount++}}catch(err){task.status='error';task.progress=0;task.error='解析响应失败';errorCount++}updateTaskUI(task);updateStats();resolve()};
+    xhr.onerror=()=>{task.status='error';task.progress=0;task.error='网络错误';errorCount++;updateTaskUI(task);updateStats();resolve()};
+    xhr.open('POST','/upload');xhr.send(formData)})}
+    function updateTaskUI(task){const progressBar=document.getElementById('progress-'+task.idx),statusEl=document.getElementById('status-'+task.idx),fileItem=document.querySelector('.file-item[data-idx="'+task.idx+'"] .file-icon');if(progressBar){progressBar.style.width=task.progress+'%';progressBar.className='progress-bar'+(task.status==='success'?' success':task.status==='error'?' error':'')}if(statusEl){const t={queued:'等待中',uploading:task.progress+'%',success:'成功',error:task.error||'失败'}[task.status];statusEl.textContent=t;statusEl.className='file-status'+(task.status==='success'?' success':task.status==='error'?' error':'')}if(fileItem)fileItem.className='file-icon'+(task.status==='success'?' success':task.status==='error'?' error':'')}
+    function updateStats(){document.getElementById('successCount').textContent=successCount;document.getElementById('errorCount').textContent=errorCount;document.getElementById('pendingCount').textContent=uploadTasks.filter(t=>t.status==='queued'||t.status==='uploading').length}
+    for(let i=0;i<uploadTasks.length;i+=maxConcurrent)await Promise.all(uploadTasks.slice(i,i+maxConcurrent).map(uploadTask));
+    if(links.length){resultArea.classList.add('active');resultLinks.innerHTML=links.map(link=>'<div><a href="'+link+'" target="_blank">'+link+'</a></div>').join('')}
+    isUploading=false;uploadBtn.disabled=false;clearBtn.style.display='inline-block'}
+    copyBtn.addEventListener('click',()=>{const links=Array.from(resultLinks.querySelectorAll('a')).map(a=>a.href).join('\\n');if(!links)return;if(navigator.clipboard){navigator.clipboard.writeText(links).then(()=>{copyBtn.textContent='已复制!';setTimeout(()=>{copyBtn.textContent='复制链接'},2000)})}else{const ta=document.createElement('textarea');ta.value=links;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);copyBtn.textContent='已复制!';setTimeout(()=>{copyBtn.textContent='复制链接'},2000)}});
+    document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>e.preventDefault());
+  </script>
+</body>
+</html>`;
+
+export async function onRequest(context) {
+    return new Response(UPLOAD_PAGE_HTML, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+}
+
+export async function onRequestPost(context) {
+    const { request, env } = context;
+
+    try {
+        const clonedRequest = request.clone();
+        const formData = await clonedRequest.formData();
+
+        await errorHandling(context);
+        telemetryData(context);
+
+        const uploadFile = formData.get('file');
+        if (!uploadFile) {
+            throw new Error('No file uploaded');
+        }
+
+        const fileName = uploadFile.name;
+        const fileExtension = fileName.split('.').pop().toLowerCase();
+
+        const telegramFormData = new FormData();
+        telegramFormData.append("chat_id", env.TG_Chat_ID);
+
+        // 根据文件类型选择合适的上传方式
+        let apiEndpoint;
+        if (uploadFile.type.startsWith('image/')) {
+            telegramFormData.append("photo", uploadFile);
+            apiEndpoint = 'sendPhoto';
+        } else if (uploadFile.type.startsWith('audio/')) {
+            telegramFormData.append("audio", uploadFile);
+            apiEndpoint = 'sendAudio';
+        } else if (uploadFile.type.startsWith('video/')) {
+            telegramFormData.append("video", uploadFile);
+            apiEndpoint = 'sendVideo';
+        } else {
+            telegramFormData.append("document", uploadFile);
+            apiEndpoint = 'sendDocument';
+        }
+
+        const result = await sendToTelegram(telegramFormData, apiEndpoint, env);
+
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+
+        const fileId = getFileId(result.data);
+
+        if (!fileId) {
+            throw new Error('Failed to get file ID');
+        }
+
+        // 将文件信息保存到 KV 存储
+        if (env.img_url) {
+            await env.img_url.put(`${fileId}.${fileExtension}`, "", {
+                metadata: {
+                    TimeStamp: Date.now(),
+                    ListType: "None",
+                    Label: "None",
+                    liked: false,
+                    fileName: fileName,
+                    fileSize: uploadFile.size,
+                }
+            });
+        }
+
+        return new Response(
+            JSON.stringify([{ 'src': `/file/${fileId}.${fileExtension}` }]),
+            {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
+    } catch (error) {
+        console.error('Upload error:', error);
+        return new Response(
+            JSON.stringify({ error: error.message }),
+            {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
+    }
+}
+
+function getFileId(response) {
+    if (!response.ok || !response.result) return null;
+
+    const result = response.result;
+    if (result.photo) {
+        return result.photo.reduce((prev, current) =>
+            (prev.file_size > current.file_size) ? prev : current
+        ).file_id;
+    }
+    if (result.document) return result.document.file_id;
+    if (result.video) return result.video.file_id;
+    if (result.audio) return result.audio.file_id;
+
+    return null;
+}
+
+async function sendToTelegram(formData, apiEndpoint, env, retryCount = 0) {
+    const MAX_RETRIES = 2;
+    const apiUrl = `https://api.telegram.org/bot${env.TG_Bot_Token}/${apiEndpoint}`;
+
+    try {
+        const response = await fetch(apiUrl, { method: "POST", body: formData });
+        const responseData = await response.json();
+
+        if (response.ok) {
+            return { success: true, data: responseData };
+        }
+
+        // 图片上传失败时转为文档方式重试
+        if (retryCount < MAX_RETRIES && apiEndpoint === 'sendPhoto') {
+            console.log('Retrying image as document...');
+            const newFormData = new FormData();
+            newFormData.append('chat_id', formData.get('chat_id'));
+            newFormData.append('document', formData.get('photo'));
+            return await sendToTelegram(newFormData, 'sendDocument', env, retryCount + 1);
+        }
+
+        return {
+            success: false,
+            error: responseData.description || 'Upload to Telegram failed'
+        };
+    } catch (error) {
+        console.error('Network error:', error);
+        if (retryCount < MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            return await sendToTelegram(formData, apiEndpoint, env, retryCount + 1);
+        }
+        return { success: false, error: 'Network error occurred' };
+    }
+}
