@@ -446,6 +446,7 @@
         <div class="drop-zone-text">拖拽文件到此处，或点击选择文件</div>
         <div class="drop-zone-hint">支持图片、视频、音频、文档，单文件最大 20MB</div>
         <input type="file" id="fileInput" class="file-input" multiple>
+        <input type="file" id="folderInput" class="file-input" webkitdirectory multiple>
       </div>
 
       <div class="upload-controls">
@@ -460,6 +461,7 @@
           </select>
         </div>
         <div>
+          <button class="btn btn-secondary" id="folderBtn" style="margin-right:8px;" title="选择文件夹上传">📁 文件夹</button>
           <button class="btn btn-secondary" id="clearBtn" style="display:none;margin-right:8px;">清空</button>
           <button class="btn btn-primary" id="uploadBtn" disabled>开始上传</button>
         </div>
@@ -505,6 +507,8 @@
   <script>
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
+    const folderInput = document.getElementById('folderInput');
+    const folderBtn = document.getElementById('folderBtn');
     const uploadBtn = document.getElementById('uploadBtn');
     const clearBtn = document.getElementById('clearBtn');
     const fileList = document.getElementById('fileList');
@@ -614,6 +618,16 @@
     fileInput.addEventListener('change', (e) => {
       handleFiles(e.target.files);
       fileInput.value = '';
+    });
+
+    folderInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+      folderInput.value = '';
+    });
+
+    folderBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      folderInput.click();
     });
 
     // 清空

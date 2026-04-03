@@ -11,7 +11,13 @@
   <script src="https://js.sentry-cdn.com/219f636ac7bde5edab2c3e16885cb535.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-  <div id="app">
+  <div id="app" @dragover.prevent="onDragOver" @dragleave="onDragLeave" @drop.prevent="onDrop">
+    <div v-if="showDragOverlay" class="drag-overlay">
+      <div class="drag-overlay-content">
+        <i class="fas fa-cloud-upload-alt drag-overlay-icon"></i>
+        <div class="drag-overlay-text">松开鼠标上传文件</div>
+      </div>
+    </div>
     <el-container>
       <el-header>
         <div class="header-content">
@@ -20,7 +26,11 @@
           <el-tooltip content="批量上传" placement="bottom">
             <span class="stats" @click="handleUpload"><i class="fas fa-upload upload-icon"></i><span class="stats-text">记录数: </span>{{ Number }}</span>
           </el-tooltip>
+          <el-tooltip content="文件夹上传" placement="bottom">
+            <span class="stats" @click="handleFolderUpload" style="margin-left:4px;"><i class="fas fa-folder-open upload-icon"></i></span>
+          </el-tooltip>
           <input type="file" ref="fileInput" style="display: none;" multiple @change="uploadFiles">
+          <input type="file" ref="folderInput" style="display: none;" webkitdirectory multiple @change="uploadFiles">
           <div class="actions">
             <el-tooltip content="文件类型" placement="bottom">
               <el-dropdown @command="switchFileType" :hide-on-click="false">
@@ -262,6 +272,8 @@
               <i v-if="task.status === 'success'" class="fas fa-check-circle success-icon"></i>
               <i v-else-if="task.status === 'error'" class="fas fa-times-circle error-icon"></i>
               <i v-else-if="task.status === 'uploading'" class="fas fa-spinner fa-spin uploading-icon"></i>
+              <i v-else-if="task.status === 'paused'" class="fas fa-pause-circle paused-icon"></i>
+              <i v-else-if="task.status === 'cancelled'" class="fas fa-ban cancelled-icon"></i>
               <i v-else class="fas fa-hourglass-half queued-icon"></i>
             </span>
             <span class="task-name" :title="task.fileName">{{ task.fileName }}</span>
@@ -269,7 +281,7 @@
           </div>
           <el-progress
             :percentage="task.progress"
-            :status="task.status === 'success' ? 'success' : task.status === 'error' ? 'exception' : ''"
+            :status="task.status === 'success' ? 'success' : task.status === 'error' || task.status === 'cancelled' ? 'exception' : ''"
             :stroke-width="6"
             :show-text="false"
           ></el-progress>
@@ -277,11 +289,31 @@
             <span class="task-status-text">{{ task.statusText }}</span>
             <span class="task-percent">{{ task.progress }}%</span>
           </div>
+          <div class="task-actions" v-if="task.status !== 'success' && task.status !== 'cancelled'">
+            <el-button v-if="task.status === 'uploading'" size="mini" type="warning" @click="pauseTask(task)" circle title="暂停">
+              <i class="fas fa-pause"></i>
+            </el-button>
+            <el-button v-if="task.status === 'paused'" size="mini" type="success" @click="resumeTask(task)" circle title="恢复">
+              <i class="fas fa-play"></i>
+            </el-button>
+            <el-button v-if="task.status === 'queued' || task.status === 'paused'" size="mini" type="danger" @click="cancelTask(task)" circle title="取消">
+              <i class="fas fa-times"></i>
+            </el-button>
+            <el-button v-if="task.status === 'queued'" size="mini" type="info" @click="moveTaskUp(idx)" circle title="上移">
+              <i class="fas fa-arrow-up"></i>
+            </el-button>
+            <el-button v-if="task.status === 'queued'" size="mini" type="info" @click="moveTaskDown(idx)" circle title="下移">
+              <i class="fas fa-arrow-down"></i>
+            </el-button>
+          </div>
         </div>
       </div>
       <div class="upload-panel-footer" v-if="uploadTasks.length > 0">
         <el-button size="mini" @click="copyAllLinks" v-if="uploadSuccessCount > 0">复制全部链接</el-button>
-        <el-button size="mini" type="primary" @click="clearCompleted" v-if="uploadSuccessCount > 0 && !hasActiveUploads">清空已完成</el-button>
+        <el-button size="mini" type="warning" @click="pauseAll" v-if="hasUploadingTasks">全部暂停</el-button>
+        <el-button size="mini" type="success" @click="resumeAll" v-if="hasPausedTasks">全部恢复</el-button>
+        <el-button size="mini" type="danger" @click="cancelAll" v-if="hasActiveUploads">全部取消</el-button>
+        <el-button size="mini" type="primary" @click="clearCompleted" v-if="uploadSuccessCount > 0">清空已完成</el-button>
       </div>
     </div>
   </el-drawer>
@@ -353,6 +385,8 @@
       showUploadPanel: false,
       uploadTasks: [],
       taskIdCounter: 0,
+      showDragOverlay: false,
+      dragCounter: 0,
     },
     computed: {
       filteredTableData() {
@@ -409,6 +443,12 @@
       },
       hasActiveUploads() {
         return this.uploadTasks.some(t => t.status === 'uploading' || t.status === 'queued');
+      },
+      hasUploadingTasks() {
+        return this.uploadTasks.some(t => t.status === 'uploading');
+      },
+      hasPausedTasks() {
+        return this.uploadTasks.some(t => t.status === 'paused');
       }
     },
     watch: {  // 监听数据变化
@@ -1041,6 +1081,222 @@
       },
       clearCompleted() {
         this.uploadTasks = this.uploadTasks.filter(t => t.status !== 'success');
+      },
+      pauseTask(task) {
+        if (task.xhr && task.status === 'uploading') {
+          task.xhr.abort();
+          task.status = 'paused';
+          task.statusText = '已暂停';
+        }
+      },
+      resumeTask(task) {
+        if (task.status === 'paused') {
+          task.status = 'queued';
+          task.statusText = '排队中';
+          this.processQueue();
+        }
+      },
+      cancelTask(task) {
+        if (task.xhr && task.status === 'uploading') {
+          task.xhr.abort();
+        }
+        task.status = 'cancelled';
+        task.statusText = '已取消';
+        task.progress = 0;
+        this.processQueue();
+      },
+      pauseAll() {
+        this.uploadTasks.filter(t => t.status === 'uploading').forEach(task => this.pauseTask(task));
+      },
+      resumeAll() {
+        this.uploadTasks.filter(t => t.status === 'paused').forEach(task => this.resumeTask(task));
+      },
+      cancelAll() {
+        this.uploadTasks.filter(t => t.status === 'uploading' || t.status === 'queued').forEach(task => this.cancelTask(task));
+      },
+      moveTaskUp(idx) {
+        if (idx > 0 && this.uploadTasks[idx].status === 'queued') {
+          const prev = this.uploadTasks[idx - 1];
+          if (prev.status === 'queued') {
+            [this.uploadTasks[idx], this.uploadTasks[idx - 1]] = [this.uploadTasks[idx - 1], this.uploadTasks[idx]];
+          }
+        }
+      },
+      moveTaskDown(idx) {
+        if (idx < this.uploadTasks.length - 1 && this.uploadTasks[idx].status === 'queued') {
+          const next = this.uploadTasks[idx + 1];
+          if (next.status === 'queued') {
+            [this.uploadTasks[idx], this.uploadTasks[idx + 1]] = [this.uploadTasks[idx + 1], this.uploadTasks[idx]];
+          }
+        }
+      },
+      async processQueue() {
+        const config = this.uploadConfig;
+        const queuedTasks = this.uploadTasks.filter(t => t.status === 'queued');
+        if (!queuedTasks.length) return;
+
+        let successCount = 0;
+        const upload = async (task) => {
+          task.status = 'uploading';
+          task.statusText = '上传中';
+          task.progress = 0;
+          return new Promise((resolve) => {
+            const formData = new FormData();
+            formData.append('file', task.file);
+            const xhr = new XMLHttpRequest();
+            task.xhr = xhr;
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                task.progress = Math.round((e.loaded / e.total) * 90);
+              }
+            };
+            xhr.onload = () => {
+              try {
+                const res = JSON.parse(xhr.responseText);
+                if (xhr.status === 200 && res[0]?.src) {
+                  task.progress = 100;
+                  task.status = 'success';
+                  task.statusText = '上传成功';
+                  task.src = res[0].src;
+                  this.tableData.unshift({
+                    name: res[0].src.replace(/^\/file\//, ''),
+                    selected: false,
+                    metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName }
+                  });
+                  successCount++;
+                  resolve(true);
+                } else {
+                  task.status = 'error';
+                  task.statusText = res[0]?.error || '上传失败';
+                  task.error = res[0]?.error || '上传失败';
+                  task.progress = 0;
+                  resolve(false);
+                }
+              } catch (err) {
+                task.status = 'error';
+                task.statusText = '解析响应失败';
+                task.error = '解析响应失败';
+                task.progress = 0;
+                resolve(false);
+              }
+            };
+            xhr.onerror = () => {
+              task.status = 'error';
+              task.statusText = '网络错误';
+              task.error = '网络错误';
+              task.progress = 0;
+              resolve(false);
+            };
+            xhr.onabort = () => {
+              resolve(false);
+            };
+            xhr.open('POST', `${this.baseURL}/upload`);
+            xhr.withCredentials = true;
+            xhr.send(formData);
+          });
+        };
+
+        for (let i = 0; i < queuedTasks.length; i += config.maxConcurrent) {
+          await Promise.all(
+            queuedTasks.slice(i, i + config.maxConcurrent).map(upload)
+          );
+        }
+        this.updateStats();
+      },
+      handleFolderUpload() {
+        this.$refs.folderInput.click();
+      },
+      onDragOver() {
+        this.dragCounter++;
+        this.showDragOverlay = true;
+      },
+      onDragLeave() {
+        this.dragCounter--;
+        if (this.dragCounter <= 0) {
+          this.dragCounter = 0;
+          this.showDragOverlay = false;
+        }
+      },
+      async onDrop(event) {
+        this.dragCounter = 0;
+        this.showDragOverlay = false;
+        const files = [];
+        const items = event.dataTransfer.items;
+        if (items) {
+          // Handle folder drag using webkitGetAsEntry
+          const entries = [];
+          for (let i = 0; i < items.length; i++) {
+            const entry = items[i].webkitGetAsEntry?.();
+            if (entry) entries.push(entry);
+          }
+          if (entries.length) {
+            await this.readEntries(entries, files);
+          }
+        }
+        if (!files.length) {
+          // Fallback to regular file list
+          Array.from(event.dataTransfer.files || []).forEach(f => files.push(f));
+        }
+        if (files.length) {
+          this.$refs.fileInput.style.display = 'none';
+          this.processFilesForUpload(files);
+        }
+      },
+      async readEntries(entries, files) {
+        for (const entry of entries) {
+          if (entry.isFile) {
+            const file = await new Promise(resolve => entry.file(resolve));
+            file._relativePath = entry.fullPath;
+            files.push(file);
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const allEntries = [];
+            const readBatch = () => new Promise(resolve => {
+              reader.readEntries(entries => {
+                if (entries.length) {
+                  allEntries.push(...entries);
+                  readBatch().then(resolve);
+                } else {
+                  resolve();
+                }
+              });
+            });
+            await readBatch();
+            await this.readEntries(allEntries, files);
+          }
+        }
+      },
+      async processFilesForUpload(files) {
+        const config = this.uploadConfig;
+        const valid = [], invalid = [];
+        files.forEach(file => {
+          (file.size <= config.maxSize ? valid : invalid).push(file);
+        });
+        if(invalid.length) { this.$message.error(`文件超过${config.maxSize/1024/1024}MB: \n${invalid.map(f => f.name).join('\n')}`); }
+        if(!valid.length) { this.$message.info('没有符合条件的文件'); return; }
+
+        try {
+          await this.$confirm(`确定要上传这 ${valid.length} 个文件吗?`, '提示', { type: 'warning' });
+          this.showUploadPanel = true;
+          const tasks = valid.map(file => ({
+            id: ++this.taskIdCounter,
+            file: file,
+            fileName: file.name,
+            fileSize: file.size,
+            relativePath: file._relativePath || null,
+            status: 'queued',
+            progress: 0,
+            statusText: '排队中',
+            src: null,
+            error: null,
+            xhr: null,
+          }));
+          this.uploadTasks = this.uploadTasks.concat(tasks);
+          await this.processQueue();
+          this.$message.success(`上传完成：成功 ${this.uploadTasks.filter(t=>t.status==='success').length} 个，失败 ${tasks.filter(t=>t.status==='error').length} 个`);
+        } catch {
+          this.$message.info('已取消上传');
+        }
       },
     },
     mounted() {

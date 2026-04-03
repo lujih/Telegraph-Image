@@ -589,3 +589,95 @@ body {
     width: 100% !important;
   }
 }
+
+/* 拖拽遮罩 */
+.drag-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(102, 126, 234, 0.9);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drag-overlay-content {
+  text-align: center;
+  color: white;
+}
+
+.drag-overlay-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
+}
+
+.drag-overlay-text {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* 上传任务操作按钮 */
+.task-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.task-actions .el-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-actions .el-button i {
+  font-size: 12px;
+}
+
+/* 暂停/取消状态图标 */
+.paused-icon {
+  color: #e6a23c;
+}
+
+.cancelled-icon {
+  color: #f56c6c;
+}
+
+.upload-task-item.cancelled {
+  background: rgba(245, 108, 108, 0.03);
+  margin: 0 -20px;
+  padding: 12px 20px;
+}
+
+.upload-task-item.paused {
+  background: rgba(230, 162, 60, 0.05);
+  margin: 0 -20px;
+  padding: 12px 20px;
+}
+
+.upload-task-item.paused .task-status-text {
+  color: #e6a23c;
+}
+
+.upload-task-item.cancelled .task-status-text {
+  color: #f56c6c;
+}
