@@ -149,7 +149,12 @@
               <el-image :src="'/file/' + item.name" fit="cover" lazy></el-image>
             </template>
             <template v-else-if="isVideo(item.name)">
-              <video :src="'/file/' + item.name" muted preload="metadata"></video>
+              <div style="position:relative;">
+                <video :src="'/file/' + item.name" muted preload="metadata" @click.stop="playVideo(item)" style="cursor:pointer;"></video>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;pointer-events:none;">
+                  <i class="fas fa-play" style="color:white;font-size:1.2rem;margin-left:3px;"></i>
+                </div>
+              </div>
             </template>
             <template v-else-if="isAudio(item.name)">
               <div class="card-preview-placeholder">
@@ -261,6 +266,24 @@
       </div>
     </el-drawer>
 
+    <!-- Video Player Dialog -->
+    <el-dialog :visible.sync="showVideoPlayer" :show-close="false" width="80%" top="5vh" custom-class="video-dialog" :append-to-body="true">
+      <div class="video-dialog-content">
+        <div class="video-dialog-header">
+          <span class="video-title">{{ currentVideo?.metadata?.fileName || currentVideo?.name || '视频播放' }}</span>
+          <div class="video-nav">
+            <button class="video-nav-btn" @click="prevVideo" :disabled="!hasPrevVideo"><i class="fas fa-step-backward"></i></button>
+            <button class="video-nav-btn" @click="nextVideo" :disabled="!hasNextVideo"><i class="fas fa-step-forward"></i></button>
+          </div>
+        </div>
+        <div class="video-dialog-body">
+          <video ref="videoPlayer" class="video-full-player" :src="currentVideo ? '/file/' + currentVideo.name : ''" controls autoplay preload="metadata" playsinline @keydown="onVideoKeydown">
+            当前浏览器不支持视频播放
+          </video>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- Footer -->
     <div class="footer">
       基于 <a href="https://github.com/cf-pages/Telegraph-Image" target="_blank" rel="noopener noreferrer">Telegraph-Image</a>
@@ -294,6 +317,8 @@
         taskIdCounter: 0,
         showDragOverlay: false,
         dragCounter: 0,
+        showVideoPlayer: false,
+        currentVideo: null,
         fileConfig: {
           image: ['jpg','jpeg','png','gif','webp','bmp','tiff','ico','svg'],
           video: ['mp4','webm','ogg','avi','mov','wmv','flv','mkv'],
@@ -353,6 +378,19 @@
         },
         hasPausedTasks() {
           return this.uploadTasks.some(t => t.status === 'paused');
+        },
+        videoList() {
+          return this.filteredTableData.filter(f => this.isVideo(f.name));
+        },
+        currentVideoIndex() {
+          if (!this.currentVideo) return -1;
+          return this.videoList.findIndex(v => v.name === this.currentVideo.name);
+        },
+        hasPrevVideo() {
+          return this.currentVideoIndex > 0;
+        },
+        hasNextVideo() {
+          return this.currentVideoIndex >= 0 && this.currentVideoIndex < this.videoList.length - 1;
         }
       },
       watch: {
@@ -575,6 +613,34 @@
               confirmButtonText: '关闭'
             });
           }
+        },
+        playVideo(item) {
+          this.currentVideo = item;
+          this.showVideoPlayer = true;
+          this.$nextTick(() => {
+            if (this.$refs.videoPlayer) {
+              this.$refs.videoPlayer.play().catch(() => {});
+            }
+          });
+        },
+        prevVideo() {
+          if (this.hasPrevVideo) {
+            this.currentVideo = this.videoList[this.currentVideoIndex - 1];
+            this.$nextTick(() => {
+              if (this.$refs.videoPlayer) this.$refs.videoPlayer.play().catch(() => {});
+            });
+          }
+        },
+        nextVideo() {
+          if (this.hasNextVideo) {
+            this.currentVideo = this.videoList[this.currentVideoIndex + 1];
+            this.$nextTick(() => {
+              if (this.$refs.videoPlayer) this.$refs.videoPlayer.play().catch(() => {});
+            });
+          }
+        },
+        onVideoKeydown(e) {
+          if (e.key === 'Escape') this.showVideoPlayer = false;
         },
         // 上传相关
         handleUpload() { this.$refs.fileInput.click(); },

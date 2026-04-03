@@ -653,6 +653,70 @@
       opacity: 1;
     }
 
+    /* Video Player */
+    .video-player-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .video-input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .video-url-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .video-url-input:focus {
+      border-color: var(--primary);
+    }
+
+    .video-player-wrapper {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .video-player {
+      width: 100%;
+      max-height: 500px;
+      display: block;
+      border-radius: 12px;
+    }
+
+    .video-close-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition);
+    }
+
+    .video-close-btn:hover {
+      background: rgba(0,0,0,0.8);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .navbar {
@@ -721,7 +785,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span>上传</span>
       </a>
-      <a href="/admin-imgtc.html" class="navbar-link">
+      <a href="/admin.html" class="navbar-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         <span>管理</span>
       </a>
@@ -829,6 +893,29 @@
         </div>
         <div class="feature-title">稳定可靠</div>
         <div class="feature-desc">基于 Cloudflare 和 Telegram 基础设施</div>
+      </div>
+    </div>
+
+    <!-- Video Player -->
+    <div class="upload-card" style="margin-top:32px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span style="font-weight:600;font-size:1rem;">视频播放器</span>
+      </div>
+      <div class="video-player-container">
+        <div class="video-input-group">
+          <input type="text" id="videoUrlInput" class="video-url-input" placeholder="输入视频链接或拖拽视频文件到此处...">
+          <button class="btn btn-primary" id="playVideoBtn" style="white-space:nowrap;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            播放
+          </button>
+        </div>
+        <div class="video-player-wrapper" id="videoPlayerWrapper" style="display:none;">
+          <video id="videoPlayer" class="video-player" controls preload="metadata" playsinline>
+            当前浏览器不支持视频播放
+          </video>
+          <button class="video-close-btn" id="closeVideoBtn" title="关闭">&times;</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1147,6 +1234,51 @@
 
     document.addEventListener('dragover', e => e.preventDefault());
     document.addEventListener('drop', e => e.preventDefault());
+
+    // Video Player
+    const videoUrlInput = document.getElementById('videoUrlInput');
+    const playVideoBtn = document.getElementById('playVideoBtn');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoPlayerWrapper = document.getElementById('videoPlayerWrapper');
+    const closeVideoBtn = document.getElementById('closeVideoBtn');
+
+    function playVideo(url) {
+      if (!url) return;
+      videoPlayer.src = url;
+      videoPlayerWrapper.style.display = 'block';
+      videoPlayer.play().catch(() => {});
+    }
+
+    playVideoBtn.addEventListener('click', () => {
+      const url = videoUrlInput.value.trim();
+      if (url) playVideo(url);
+    });
+
+    videoUrlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const url = videoUrlInput.value.trim();
+        if (url) playVideo(url);
+      }
+    });
+
+    closeVideoBtn.addEventListener('click', () => {
+      videoPlayer.pause();
+      videoPlayer.src = '';
+      videoPlayerWrapper.style.display = 'none';
+    });
+
+    // Drag video files to player
+    videoUrlInput.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+    videoUrlInput.addEventListener('drop', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        videoUrlInput.value = file.name;
+        playVideo(url);
+      }
+    });
   </script>
 </body>
 </html>
