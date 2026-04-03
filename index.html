@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Telegraph-Image | Free Image Hosting</title>
+  <title>Telegraph-Image | 免费图床</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -719,11 +719,11 @@
     <div class="navbar-links">
       <a href="/upload" class="navbar-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span>Upload</span>
+        <span>上传</span>
       </a>
       <a href="/admin-imgtc.html" class="navbar-link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <span>Admin</span>
+        <span>管理</span>
       </a>
       <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -736,8 +736,8 @@
   <div class="main">
     <!-- Hero -->
     <div class="hero">
-      <h1>Free Image Hosting</h1>
-      <p>Fast, reliable, and completely free. Upload images via drag & drop, paste, or file selection.</p>
+      <h1>免费图床</h1>
+      <p>快速、稳定、完全免费的图片托管服务，支持拖拽、粘贴和文件选择</p>
     </div>
 
     <!-- Upload Card -->
@@ -750,14 +750,14 @@
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <div class="drop-zone-text">Drag & drop files here, or click to select</div>
-        <div class="drop-zone-hint">Supports images, videos, audio, documents. Max 20MB per file. Press Ctrl+V to paste.</div>
+        <div class="drop-zone-text">拖拽文件到此处，或点击选择文件</div>
+        <div class="drop-zone-hint">支持图片、视频、音频、文档，单文件最大 20MB。按 Ctrl+V 粘贴</div>
         <input type="file" id="fileInput" class="file-input" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar">
       </div>
 
       <div class="upload-controls">
         <div class="control-group">
-          <span class="control-label">Concurrency:</span>
+          <span class="control-label">并发数：</span>
           <select id="concurrency" class="control-select">
             <option value="1">1</option>
             <option value="2">2</option>
@@ -766,10 +766,10 @@
           </select>
         </div>
         <div>
-          <button class="btn btn-secondary" id="clearBtn" style="display:none;margin-right:8px;">Clear</button>
+          <button class="btn btn-secondary" id="clearBtn" style="display:none;margin-right:8px;">清空</button>
           <button class="btn btn-primary" id="uploadBtn" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Upload
+            上传
           </button>
         </div>
       </div>
@@ -777,7 +777,7 @@
       <!-- File List -->
       <div class="file-list" id="fileList">
         <div class="file-list-header">
-          <span class="file-list-title">Files</span>
+          <span class="file-list-title">文件列表</span>
           <span class="file-list-summary" id="fileSummary"></span>
         </div>
         <div id="fileListContent"></div>
@@ -785,16 +785,16 @@
 
       <!-- Stats -->
       <div class="stats" id="statsBar" style="display:none;">
-        <div class="stat-item"><span class="stat-dot success"></span>Success: <strong id="successCount">0</strong></div>
-        <div class="stat-item"><span class="stat-dot error"></span>Failed: <strong id="errorCount">0</strong></div>
-        <div class="stat-item"><span class="stat-dot pending"></span>Pending: <strong id="pendingCount">0</strong></div>
+        <div class="stat-item"><span class="stat-dot success"></span>成功: <strong id="successCount">0</strong></div>
+        <div class="stat-item"><span class="stat-dot error"></span>失败: <strong id="errorCount">0</strong></div>
+        <div class="stat-item"><span class="stat-dot pending"></span>等待: <strong id="pendingCount">0</strong></div>
       </div>
 
       <!-- Results -->
       <div class="results" id="resultArea">
         <div class="results-header">
-          <span class="results-title">Upload Results</span>
-          <button class="btn btn-secondary" id="copyAllBtn" style="padding:6px 16px;font-size:0.85rem;">Copy All Links</button>
+          <span class="results-title">上传结果</span>
+          <button class="btn btn-secondary" id="copyAllBtn" style="padding:6px 16px;font-size:0.85rem;">复制全部链接</button>
         </div>
         <div class="results-links" id="resultLinks"></div>
       </div>
@@ -806,36 +806,36 @@
         <div class="feature-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </div>
-        <div class="feature-title">Fast Upload</div>
-        <div class="feature-desc">Concurrent uploads with real-time progress tracking</div>
+        <div class="feature-title">快速上传</div>
+        <div class="feature-desc">多文件并发上传，实时进度追踪</div>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
         </div>
-        <div class="feature-title">Multi-format</div>
-        <div class="feature-desc">Support images, videos, audio, and documents</div>
+        <div class="feature-title">多格式支持</div>
+        <div class="feature-desc">支持图片、视频、音频和文档上传</div>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </div>
-        <div class="feature-title">Drag & Paste</div>
-        <div class="feature-desc">Drag files or paste from clipboard with Ctrl+V</div>
+        <div class="feature-title">拖拽粘贴</div>
+        <div class="feature-desc">拖拽文件或使用 Ctrl+V 粘贴上传</div>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
-        <div class="feature-title">Reliable</div>
-        <div class="feature-desc">Powered by Cloudflare & Telegram infrastructure</div>
+        <div class="feature-title">稳定可靠</div>
+        <div class="feature-desc">基于 Cloudflare 和 Telegram 基础设施</div>
       </div>
     </div>
   </div>
 
   <!-- Footer -->
   <div class="footer">
-    Powered By <a href="https://github.com/cf-pages/Telegraph-Image" target="_blank" rel="noopener noreferrer">Telegraph-Image</a>
+    基于 <a href="https://github.com/cf-pages/Telegraph-Image" target="_blank" rel="noopener noreferrer">Telegraph-Image</a>
   </div>
 
   <!-- Toast -->
@@ -976,7 +976,7 @@
       clearBtn.style.display = 'inline-flex';
       uploadBtn.disabled = false;
       const total = selectedFiles.reduce((s, f) => s + f.size, 0);
-      fileSummary.textContent = `${selectedFiles.length} files, ${formatSize(total)}`;
+      fileSummary.textContent = `${selectedFiles.length} 个文件，共 ${formatSize(total)}`;
       fileListContent.innerHTML = selectedFiles.map((file, idx) => {
         const isImage = file.type.startsWith('image/');
         const thumb = isImage
@@ -988,7 +988,7 @@
             <div class="file-name" title="${file.name}">${file.name}</div>
             <div class="file-meta">
               <span class="file-size">${formatSize(file.size)}</span>
-              <span class="file-status" id="status-${idx}">Waiting</span>
+              <span class="file-status" id="status-${idx}">等待中</span>
             </div>
             <div class="progress-bar-container"><div class="progress-bar" id="progress-${idx}" style="width:0%"></div></div>
           </div>
@@ -999,7 +999,7 @@
     function handleFiles(files) {
       const valid = [], invalid = [];
       Array.from(files).forEach(f => { (f.size <= MAX_FILE_SIZE ? valid : invalid).push(f); });
-      if (invalid.length) showToast(`${invalid.length} file(s) exceed 20MB limit`);
+      if (invalid.length) showToast(`${invalid.length} 个文件超过 20MB 限制`);
       if (!valid.length) return;
       selectedFiles = selectedFiles.concat(valid);
       updateFileList();
@@ -1069,21 +1069,21 @@
                 const bar = document.getElementById(`progress-${idx}`);
                 const status = document.getElementById(`status-${idx}`);
                 if (bar) { bar.style.width = '100%'; bar.classList.add('success'); }
-                if (status) { status.textContent = 'Done'; status.classList.add('success'); }
+                if (status) { status.textContent = '成功'; status.classList.add('success'); }
                 uploadResults.push({ name: file.name, src: res[0].src, success: true });
                 successCount++;
                 resolve(true);
               } else {
                 const status = document.getElementById(`status-${idx}`);
-                if (status) { status.textContent = 'Failed'; status.classList.add('error'); }
-                uploadResults.push({ name: file.name, error: res[0]?.error || 'Upload failed', success: false });
+                if (status) { status.textContent = '失败'; status.classList.add('error'); }
+                uploadResults.push({ name: file.name, error: res[0]?.error || '上传失败', success: false });
                 errorCount++;
                 resolve(false);
               }
             } catch {
               const status = document.getElementById(`status-${idx}`);
-              if (status) { status.textContent = 'Error'; status.classList.add('error'); }
-              uploadResults.push({ name: file.name, error: 'Parse error', success: false });
+              if (status) { status.textContent = '错误'; status.classList.add('error'); }
+              uploadResults.push({ name: file.name, error: '解析错误', success: false });
               errorCount++;
               resolve(false);
             }
@@ -1091,8 +1091,8 @@
           };
           xhr.onerror = () => {
             const status = document.getElementById(`status-${idx}`);
-            if (status) { status.textContent = 'Network error'; status.classList.add('error'); }
-            uploadResults.push({ name: file.name, error: 'Network error', success: false });
+            if (status) { status.textContent = '网络错误'; status.classList.add('error'); }
+            uploadResults.push({ name: file.name, error: '网络错误', success: false });
             errorCount++;
             updateStats();
             resolve(false);
@@ -1120,14 +1120,14 @@
           <div class="result-item">
             <img class="result-thumb" src="${r.src}" alt="" onerror="this.style.display='none'">
             <a class="result-link" href="${location.origin}${r.src}" target="_blank">${location.origin}${r.src}</a>
-            <button class="result-copy" data-link="${location.origin}${r.src}">Copy</button>
+            <button class="result-copy" data-link="${location.origin}${r.src}">复制</button>
           </div>
         `).join('');
         resultLinks.querySelectorAll('.result-copy').forEach(btn => {
           btn.addEventListener('click', () => {
             navigator.clipboard?.writeText(btn.dataset.link).then(() => {
-              btn.textContent = 'Done!';
-              setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+              btn.textContent = '已复制!';
+              setTimeout(() => { btn.textContent = '复制'; }, 1500);
             });
           });
         });
@@ -1136,13 +1136,13 @@
       isUploading = false;
       uploadBtn.disabled = false;
       clearBtn.style.display = 'inline-flex';
-      showToast(`Upload complete: ${successCount} succeeded, ${errorCount} failed`);
+      showToast(`上传完成：成功 ${successCount} 个，失败 ${errorCount} 个`);
     }
 
     copyAllBtn.addEventListener('click', () => {
       const links = uploadResults.filter(r => r.success).map(r => `${location.origin}${r.src}`).join('\n');
       if (!links) return;
-      navigator.clipboard?.writeText(links).then(() => showToast('All links copied!'));
+      navigator.clipboard?.writeText(links).then(() => showToast('全部链接已复制！'));
     });
 
     document.addEventListener('dragover', e => e.preventDefault());
