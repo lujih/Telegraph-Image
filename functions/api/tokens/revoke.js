@@ -1,4 +1,4 @@
-import { createDatabase } from "../../../db/factory.js";
+import { createDatabase } from "../../db/factory.js";
 
 export async function onRequestPost(context) {
     const { request, env } = context;

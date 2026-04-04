@@ -1,5 +1,5 @@
-import { createDatabase } from "../../db/factory.js";
-import { createStorage } from "../../storage/factory.js";
+import { createDatabase } from "../db/factory.js";
+import { createStorage } from "../storage/factory.js";
 
 export async function onRequest(context) {
     const { request, env, params } = context;

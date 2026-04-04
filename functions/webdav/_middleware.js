@@ -1,4 +1,4 @@
-import { tokenAuth } from "../../utils/tokenAuth.js";
+import { tokenAuth } from "../utils/tokenAuth.js";
 
 export const onRequest = [webdavAuth];
 
