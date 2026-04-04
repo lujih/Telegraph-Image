@@ -267,19 +267,55 @@
     </el-drawer>
 
     <!-- Video Player Dialog -->
-    <el-dialog :visible.sync="showVideoPlayer" :show-close="false" width="80%" top="5vh" custom-class="video-dialog" :append-to-body="true">
-      <div class="video-dialog-content">
+    <el-dialog :visible.sync="showVideoPlayer" :show-close="false" width="80%" top="5vh" custom-class="video-dialog" :append-to-body="true" @close="onVideoClose">
+      <div class="video-dialog-content" @mousemove="showVideoControls = true" @mouseleave="hideVideoControls">
         <div class="video-dialog-header">
           <span class="video-title">{{ currentVideo?.metadata?.fileName || currentVideo?.name || '视频播放' }}</span>
+          <div class="video-info">
+            <span class="video-meta">{{ formatFileSize(currentVideo?.metadata?.fileSize) }}</span>
+          </div>
           <div class="video-nav">
-            <button class="video-nav-btn" @click="prevVideo" :disabled="!hasPrevVideo"><i class="fas fa-step-backward"></i></button>
-            <button class="video-nav-btn" @click="nextVideo" :disabled="!hasNextVideo"><i class="fas fa-step-forward"></i></button>
+            <button class="video-nav-btn" @click="prevVideo" :disabled="!hasPrevVideo" title="上一个 (B)"><i class="fas fa-step-backward"></i></button>
+            <button class="video-nav-btn" @click="nextVideo" :disabled="!hasNextVideo" title="下一个 (N)"><i class="fas fa-step-forward"></i></button>
           </div>
         </div>
-        <div class="video-dialog-body">
-          <video ref="videoPlayer" class="video-full-player" :src="currentVideo ? '/file/' + currentVideo.name : ''" controls autoplay preload="metadata" playsinline @keydown="onVideoKeydown">
+        <div class="video-dialog-body" :class="{ 'show-controls': showVideoControls }">
+          <video ref="videoPlayer" class="video-full-player" :src="currentVideo ? '/file/' + currentVideo.name : ''" preload="metadata" playsinline @click="toggleVideoPlay" @play="videoPlaying = true" @pause="videoPlaying = false" @timeupdate="updateVideoProgress" @loadedmetadata="onVideoLoaded">
             当前浏览器不支持视频播放
           </video>
+          <div class="video-play-overlay" v-if="!videoPlaying">
+            <i class="fas fa-play" @click="toggleVideoPlay"></i>
+          </div>
+          <div class="video-ctrl-bar">
+            <div class="video-progress-wrap" @mousedown="seekVideo">
+              <div class="video-progress-bg">
+                <div class="video-progress-buffer" :style="{ width: videoBuffer + '%' }"></div>
+                <div class="video-progress-fill" :style="{ width: videoProgress + '%' }"></div>
+                <div class="video-progress-thumb" :style="{ left: videoProgress + '%' }"></div>
+              </div>
+            </div>
+            <div class="video-ctrl-row">
+              <div class="video-ctrl-left">
+                <button class="v-ctrl-btn" @click="toggleVideoPlay"><i :class="videoPlaying ? 'fas fa-pause' : 'fas fa-play'"></i></button>
+                <button class="v-ctrl-btn" @click="skipVideo(-5)"><i class="fas fa-backward"></i></button>
+                <button class="v-ctrl-btn" @click="skipVideo(5)"><i class="fas fa-forward"></i></button>
+                <button class="v-ctrl-btn" @click="toggleVideoMute"><i :class="videoMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up'"></i></button>
+                <input type="range" class="v-vol-slider" min="0" max="1" step="0.05" :value="videoVol" @input="setVideoVol">
+                <span class="v-time">{{ videoTime }} / {{ videoDuration }}</span>
+              </div>
+              <div class="video-ctrl-right">
+                <div class="v-speed-wrap">
+                  <button class="v-ctrl-btn v-speed-btn" @click.stop="showSpeedMenu = !showSpeedMenu">{{ videoSpeed }}x</button>
+                  <div class="v-speed-menu" v-show="showSpeedMenu">
+                    <div v-for="s in [0.25,0.5,0.75,1,1.25,1.5,2]" :key="s" class="v-speed-opt" :class="{ active: videoSpeed === s }" @click="setVideoSpeed(s)">{{ s }}x</div>
+                  </div>
+                </div>
+                <button class="v-ctrl-btn" @click="toggleVideoPiP" title="画中画 (P)"><i class="fas fa-clone"></i></button>
+                <button class="v-ctrl-btn" @click="toggleVideoFS" title="全屏 (F)"><i :class="videoFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i></button>
+                <button class="v-ctrl-btn" @click="showVideoPlayer = false" title="关闭 (Esc)"><i class="fas fa-times"></i></button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </el-dialog>
@@ -319,6 +355,17 @@
         dragCounter: 0,
         showVideoPlayer: false,
         currentVideo: null,
+        showVideoControls: true,
+        videoPlaying: false,
+        videoProgress: 0,
+        videoBuffer: 0,
+        videoVol: 1,
+        videoMuted: false,
+        videoTime: '0:00',
+        videoDuration: '0:00',
+        videoSpeed: 1,
+        showSpeedMenu: false,
+        videoFullscreen: false,
         fileConfig: {
           image: ['jpg','jpeg','png','gif','webp','bmp','tiff','ico','svg'],
           video: ['mp4','webm','ogg','avi','mov','wmv','flv','mkv'],
@@ -617,8 +664,15 @@
         playVideo(item) {
           this.currentVideo = item;
           this.showVideoPlayer = true;
+          this.videoPlaying = false;
+          this.videoProgress = 0;
+          this.videoBuffer = 0;
+          this.videoTime = '0:00';
+          this.videoSpeed = 1;
+          this.showSpeedMenu = false;
           this.$nextTick(() => {
             if (this.$refs.videoPlayer) {
+              this.$refs.videoPlayer.playbackRate = 1;
               this.$refs.videoPlayer.play().catch(() => {});
             }
           });
@@ -626,21 +680,64 @@
         prevVideo() {
           if (this.hasPrevVideo) {
             this.currentVideo = this.videoList[this.currentVideoIndex - 1];
-            this.$nextTick(() => {
-              if (this.$refs.videoPlayer) this.$refs.videoPlayer.play().catch(() => {});
-            });
+            this.videoProgress = 0; this.videoBuffer = 0; this.videoTime = '0:00';
+            this.$nextTick(() => { if (this.$refs.videoPlayer) { this.$refs.videoPlayer.playbackRate = this.videoSpeed; this.$refs.videoPlayer.play().catch(() => {}); } });
           }
         },
         nextVideo() {
           if (this.hasNextVideo) {
             this.currentVideo = this.videoList[this.currentVideoIndex + 1];
-            this.$nextTick(() => {
-              if (this.$refs.videoPlayer) this.$refs.videoPlayer.play().catch(() => {});
-            });
+            this.videoProgress = 0; this.videoBuffer = 0; this.videoTime = '0:00';
+            this.$nextTick(() => { if (this.$refs.videoPlayer) { this.$refs.videoPlayer.playbackRate = this.videoSpeed; this.$refs.videoPlayer.play().catch(() => {}); } });
           }
         },
-        onVideoKeydown(e) {
-          if (e.key === 'Escape') this.showVideoPlayer = false;
+        onVideoClose() {
+          if (this.$refs.videoPlayer) { this.$refs.videoPlayer.pause(); this.$refs.videoPlayer.src = ''; }
+          if (document.fullscreenElement) document.exitFullscreen();
+          this.videoFullscreen = false;
+        },
+        toggleVideoPlay() {
+          const v = this.$refs.videoPlayer;
+          if (!v) return;
+          v.paused ? v.play().catch(() => {}) : v.pause();
+        },
+        skipVideo(s) { if (this.$refs.videoPlayer) this.$refs.videoPlayer.currentTime = Math.max(0, Math.min(this.$refs.videoPlayer.duration || 0, this.$refs.videoPlayer.currentTime + s)); },
+        updateVideoProgress() {
+          const v = this.$refs.videoPlayer;
+          if (!v || !v.duration) return;
+          this.videoProgress = (v.currentTime / v.duration) * 100;
+          this.videoTime = this.fmtTime(v.currentTime);
+          this.videoDuration = this.fmtTime(v.duration);
+          if (v.buffered.length) { this.videoBuffer = (v.buffered.end(v.buffered.length - 1) / v.duration) * 100; }
+        },
+        onVideoLoaded() {
+          const v = this.$refs.videoPlayer;
+          if (v) { this.videoDuration = this.fmtTime(v.duration); }
+        },
+        fmtTime(s) { if (!s || isNaN(s)) return '0:00'; const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return m + ':' + (sec < 10 ? '0' : '') + sec; },
+        seekVideo(e) {
+          const v = this.$refs.videoPlayer;
+          if (!v || !v.duration) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+          v.currentTime = pct * v.duration;
+        },
+        setVideoVol(e) { this.videoVol = parseFloat(e.target.value); if (this.$refs.videoPlayer) { this.$refs.videoPlayer.volume = this.videoVol; this.$refs.videoPlayer.muted = false; this.videoMuted = false; } },
+        toggleVideoMute() { if (this.$refs.videoPlayer) { this.$refs.videoPlayer.muted = !this.$refs.videoPlayer.muted; this.videoMuted = this.$refs.videoPlayer.muted; } },
+        setVideoSpeed(s) { this.videoSpeed = s; if (this.$refs.videoPlayer) this.$refs.videoPlayer.playbackRate = s; this.showSpeedMenu = false; },
+        toggleVideoPiP() {
+          const v = this.$refs.videoPlayer;
+          if (!v) return;
+          try { if (document.pictureInPictureElement) document.exitPictureInPicture(); else v.requestPictureInPicture(); } catch (e) { this.$message.warning('画中画不可用'); }
+        },
+        toggleVideoFS() {
+          const body = this.$el;
+          if (!document.fullscreenElement) { (body.requestFullscreen || body.webkitRequestFullscreen || (() => {})).call(body); this.videoFullscreen = true; }
+          else { (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document); this.videoFullscreen = false; }
+        },
+        hideVideoControls() {
+          const v = this.$refs.videoPlayer;
+          if (v && !v.paused) { setTimeout(() => { this.showVideoControls = false; }, 1500); }
         },
         // 上传相关
         handleUpload() { this.$refs.fileInput.click(); },
@@ -810,6 +907,25 @@
           .catch(() => {});
         // Load data
         this.fetchList('./api/manage/list?limit=100');
+        // Keyboard shortcuts for video player
+        document.addEventListener('keydown', (e) => {
+          if (!this.showVideoPlayer || !this.$refs.videoPlayer) return;
+          if (e.target.tagName === 'INPUT') return;
+          const v = this.$refs.videoPlayer;
+          switch (e.key) {
+            case ' ': e.preventDefault(); this.toggleVideoPlay(); break;
+            case 'ArrowLeft': v.currentTime = Math.max(0, v.currentTime - 5); break;
+            case 'ArrowRight': v.currentTime = Math.min(v.duration || 0, v.currentTime + 5); break;
+            case 'ArrowUp': e.preventDefault(); v.volume = Math.min(1, v.volume + 0.1); this.videoVol = v.volume; break;
+            case 'ArrowDown': e.preventDefault(); v.volume = Math.max(0, v.volume - 0.1); this.videoVol = v.volume; break;
+            case 'm': case 'M': this.toggleVideoMute(); break;
+            case 'f': case 'F': this.toggleVideoFS(); break;
+            case 'p': case 'P': this.toggleVideoPiP(); break;
+            case 'n': case 'N': this.nextVideo(); break;
+            case 'b': case 'B': this.prevVideo(); break;
+            case 'Escape': this.showVideoPlayer = false; break;
+          }
+        });
       }
     });
   </script>
