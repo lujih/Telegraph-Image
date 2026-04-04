@@ -1,22 +1,19 @@
+import { createDatabase } from "../../../db/factory.js";
+
 export async function onRequest(context) {
-    const { params, env } = context;
+    const { params, request } = context;
+    const url = new URL(request.url);
+    const newName = url.searchParams.get('newName');
+    const db = createDatabase(context.env);
+    if (!db) return new Response('No database configured', { status: 500 });
 
-    console.log("Request ID:", params.id);
+    const record = await db.getWithMetadata(params.id);
+    if (!record || !record.metadata) return new Response(`Image metadata not found for ID: ${params.id}`, { status: 404 });
 
-    // 获取元数据
-    const value = await env.img_url.getWithMetadata(params.id);
-    console.log("Current metadata:", value);
+    record.metadata.fileName = newName || params.name;
+    await db.put(params.id, '', record.metadata);
 
-    // 如果记录不存在
-    if (!value.metadata) return new Response(`Image metadata not found for ID: ${params.id}`, { status: 404 });
-
-    // 更新文件名
-    value.metadata.fileName = params.name;
-    await env.img_url.put(params.id, "", { metadata: value.metadata });
-
-    console.log("Updated metadata:", value.metadata);
-
-    return new Response(JSON.stringify({ success: true, fileName: value.metadata.fileName }), {
+    return new Response(JSON.stringify({ success: true, fileName: record.metadata.fileName }), {
         headers: { 'Content-Type': 'application/json' },
     });
 }

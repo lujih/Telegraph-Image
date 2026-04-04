@@ -1,17 +1,10 @@
-export async function onRequest(context) {
-    // Contents of context object
-    const {
-      request, // same as existing Worker API
-      env, // same as existing Worker API
-      params, // if filename includes [id] or [[path]]
-      waitUntil, // same as ctx.waitUntil in existing Worker API
-      next, // used for middleware or to fetch assets
-      data, // arbitrary space for passing data between middlewares
-    } = context;
-    console.log(env)
-    console.log(params.id)
-    await env.img_url.delete(params.id);
-    const info = JSON.stringify(params.id);
-    return new Response(info);
+import { createDatabase } from "../../../db/factory.js";
 
-  }
+export async function onRequest(context) {
+    const { params } = context;
+    const db = createDatabase(context.env);
+    if (!db) return new Response('No database configured', { status: 500 });
+
+    await db.delete(params.id);
+    return new Response(JSON.stringify(params.id));
+}
