@@ -939,3 +939,33 @@ body {
 .grid-card:hover .card-preview video {
   opacity: 0.8;
 }
+
+/* Settings Dialog */
+.settings-dialog .el-dialog {
+  border-radius: 12px;
+}
+
+.settings-dialog .el-dialog__header {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.settings-dialog .el-dialog__body {
+  padding: 20px;
+}
+
+.settings-dialog .el-tabs__header {
+  margin-bottom: 16px;
+}
+
+.settings-dialog .el-form-item {
+  margin-bottom: 16px;
+}
+
+.settings-dialog code {
+  font-family: monospace;
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
