@@ -969,3 +969,84 @@ body {
   border-radius: 4px;
   font-size: 0.85rem;
 }
+
+/* Main Layout */
+.main-layout {
+  display: flex;
+  margin-top: 76px;
+  min-height: calc(100vh - 76px);
+}
+
+.dir-sidebar {
+  width: 220px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.dir-sidebar.collapsed { width: 48px; }
+
+.dir-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.dir-tree {
+  padding: 8px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.dir-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-item:hover { background: var(--border); color: var(--text); }
+.dir-item.active { background: var(--primary); color: white; }
+.dir-item i { font-size: 0.8rem; flex-shrink: 0; }
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Card Tags */
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.card-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--primary);
+  color: white;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .dir-sidebar { display: none; }
+  .main-content { margin-left: 0; }
+}

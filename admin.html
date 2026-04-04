@@ -57,6 +57,32 @@
       </div>
     </nav>
 
+    <!-- Main Layout -->
+    <div class="main-layout">
+      <!-- Directory Sidebar -->
+      <div class="dir-sidebar" :class="{ collapsed: dirCollapsed }">
+        <div class="dir-header">
+          <span v-if="!dirCollapsed">目录</span>
+          <button class="nav-btn" @click="dirCollapsed = !dirCollapsed" :title="dirCollapsed ? '展开目录' : '收起目录'">
+            <i :class="dirCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
+          </button>
+        </div>
+        <div class="dir-tree" v-show="!dirCollapsed">
+          <div class="dir-item" :class="{ active: currentDir === '' }" @click="currentDir = ''; fetchList('./api/manage/list?limit=100')">
+            <i class="fas fa-folder"></i>
+            <span>根目录</span>
+          </div>
+          <template v-for="dir in directoryTree">
+            <div class="dir-item" :class="{ active: currentDir === dir.path }" @click="currentDir = dir.path; fetchList(`./api/manage/list?limit=100&prefix=${encodeURIComponent(dir.path + '/')}`)">
+              <i class="fas fa-folder-open"></i>
+              <span>{{ dir.name }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Content Area -->
+      <div class="main-content">
     <!-- Stats Panel -->
     <div class="stats-panel">
       <div class="stats-card">
@@ -105,19 +131,26 @@
     <div class="toolbar">
       <div class="toolbar-group">
         <span class="toolbar-label">类型:</span>
-        <button class="toolbar-btn" :class="{ active: fileType === 'all' }" @click="fileType = 'all'">全部</button>
-        <button class="toolbar-btn" :class="{ active: fileType === 'image' }" @click="fileType = 'image'">图片</button>
-        <button class="toolbar-btn" :class="{ active: fileType === 'video' }" @click="fileType = 'video'">视频</button>
-        <button class="toolbar-btn" :class="{ active: fileType === 'audio' }" @click="fileType = 'audio'">音频</button>
-        <button class="toolbar-btn" :class="{ active: fileType === 'document' }" @click="fileType = 'document'">文档</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'all' }" @click="fileType = 'all'; applyFilters()">全部</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'image' }" @click="fileType = 'image'; applyFilters()">图片</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'video' }" @click="fileType = 'video'; applyFilters()">视频</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'audio' }" @click="fileType = 'audio'; applyFilters()">音频</button>
+        <button class="toolbar-btn" :class="{ active: fileType === 'document' }" @click="fileType = 'document'; applyFilters()">文档</button>
       </div>
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
         <span class="toolbar-label">状态:</span>
-        <button class="toolbar-btn" :class="{ active: filterOption === 'all' }" @click="filterOption = 'all'">全部</button>
-        <button class="toolbar-btn" :class="{ active: filterOption === 'favorites' }" @click="filterOption = 'favorites'">收藏</button>
-        <button class="toolbar-btn" :class="{ active: filterOption === 'blocked' }" @click="filterOption = 'blocked'">黑名单</button>
-        <button class="toolbar-btn" :class="{ active: filterOption === 'unblocked' }" @click="filterOption = 'unblocked'">白名单</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'all' }" @click="filterOption = 'all'; applyFilters()">全部</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'favorites' }" @click="filterOption = 'favorites'; applyFilters()">收藏</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'blocked' }" @click="filterOption = 'blocked'; applyFilters()">黑名单</button>
+        <button class="toolbar-btn" :class="{ active: filterOption === 'unblocked' }" @click="filterOption = 'unblocked'; applyFilters()">白名单</button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">标签:</span>
+        <el-select v-model="selectedTags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" size="mini" style="width:200px" @change="applyFilters">
+          <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag"></el-option>
+        </el-select>
       </div>
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
@@ -130,6 +163,8 @@
       <div class="toolbar-group">
         <button class="toolbar-btn" @click="selectAllInPage">全选</button>
         <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchCopy" v-if="selectedCount > 0">复制({{ selectedCount }})</button>
+        <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="showBatchMoveDialog = true" v-if="selectedCount > 0">移动({{ selectedCount }})</button>
+        <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="showBatchTagDialog = true" v-if="selectedCount > 0">标签({{ selectedCount }})</button>
         <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchDelete" v-if="selectedCount > 0">删除({{ selectedCount }})</button>
         <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchBlock('Block')" v-if="selectedCount > 0">黑名单</button>
         <button class="toolbar-btn" :class="{ disabled: selectedCount === 0 }" @click="handleBatchBlock('White')" v-if="selectedCount > 0">白名单</button>
@@ -172,6 +207,9 @@
           </div>
           <div class="card-info">
             <div class="card-name" :title="item.metadata.fileName || item.name">{{ item.metadata.fileName || item.name }}</div>
+            <div class="card-tags" v-if="item.metadata.tags && item.metadata.tags.length">
+              <span v-for="tag in item.metadata.tags.slice(0, 3)" :key="tag" class="card-tag">{{ tag }}</span>
+            </div>
             <div class="card-meta">
               <span>{{ formatFileSize(item.metadata.fileSize) }}</span>
               <span v-if="item.metadata.ListType === 'Block'" style="color:var(--error)">黑名单</span>
@@ -181,6 +219,7 @@
           <div class="card-actions" @click.stop>
             <button class="action-btn" @click="handleCopy(item)"><i class="fas fa-link"></i> 复制</button>
             <button class="action-btn" @click="handleEditName(item)"><i class="fas fa-edit"></i> 编辑</button>
+            <button class="action-btn" @click="showMoveDialog(item)"><i class="fas fa-arrows-alt"></i> 移动</button>
             <button class="action-btn danger" @click="handleDelete(item)"><i class="fas fa-trash"></i> 删除</button>
           </div>
         </div>
@@ -395,6 +434,54 @@
       </el-input>
     </el-dialog>
 
+    <!-- Move File Dialog -->
+    <el-dialog title="移动文件" :visible.sync="showMoveItem" width="400px" append-to-body>
+      <el-input v-model="moveTargetDir" placeholder="输入目标目录路径 (留空为根目录)">
+        <template slot="prepend">/</template>
+      </el-input>
+      <div style="margin-top:8px;font-size:0.8rem;color:var(--text-muted)">当前: {{ moveItem?.name }}</div>
+      <div slot="footer">
+        <el-button @click="showMoveItem = false">取消</el-button>
+        <el-button type="primary" @click="moveFile">移动</el-button>
+      </div>
+    </el-dialog>
+
+    <!-- Batch Move Dialog -->
+    <el-dialog title="批量移动" :visible.sync="showBatchMoveDialog" width="400px" append-to-body>
+      <el-input v-model="batchMoveTarget" placeholder="输入目标目录路径 (如: folder/subfolder)">
+        <template slot="prepend">/</template>
+      </el-input>
+      <div style="margin-top:8px;font-size:0.8rem;color:var(--text-muted)">将移动 {{ selectedCount }} 个文件</div>
+      <div slot="footer">
+        <el-button @click="showBatchMoveDialog = false">取消</el-button>
+        <el-button type="primary" @click="batchMove">移动</el-button>
+      </div>
+    </el-dialog>
+
+    <!-- Batch Tag Dialog -->
+    <el-dialog title="批量标签" :visible.sync="showBatchTagDialog" width="400px" append-to-body>
+      <el-form label-width="60px">
+        <el-form-item label="操作">
+          <el-select v-model="batchTagAction" style="width:100%">
+            <el-option label="设置 (替换所有标签)" value="set"></el-option>
+            <el-option label="添加" value="add"></el-option>
+            <el-option label="移除" value="remove"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="batchTags" multiple filterable allow-create default-first-option style="width:100%" placeholder="输入标签后回车">
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <div slot="footer">
+        <el-button @click="showBatchTagDialog = false">取消</el-button>
+        <el-button type="primary" @click="batchTag">应用</el-button>
+      </div>
+    </el-dialog>
+
+      </div><!-- end main-content -->
+    </div><!-- end main-layout -->
+
     <!-- Footer -->
     <div class="footer">
       基于 <a href="https://github.com/cf-pages/Telegraph-Image" target="_blank" rel="noopener noreferrer">Telegraph-Image</a>
@@ -459,6 +546,22 @@
         newTokenName: '',
         showCreatedToken: false,
         createdTokenValue: '',
+        // Directory
+        dirCollapsed: false,
+        directoryTree: [],
+        currentDir: '',
+        // Move
+        showMoveItem: false,
+        moveItem: null,
+        moveTargetDir: '',
+        showBatchMoveDialog: false,
+        batchMoveTarget: '',
+        // Tags
+        allTags: [],
+        selectedTags: [],
+        showBatchTagDialog: false,
+        batchTagAction: 'set',
+        batchTags: [],
       computed: {
         fileStats() {
           let stats = { image: 0, video: 0, audio: 0, document: 0, liked: 0, blocked: 0, whitelisted: 0 };
@@ -1066,6 +1169,110 @@
             this.$message.success('已复制');
           }).catch(() => { this.$message.error('复制失败'); });
         },
+        // Directory
+        async loadDirectoryTree() {
+          try {
+            const res = await fetch('./api/manage/directoryTree', { credentials: 'include' });
+            const data = await res.json();
+            this.directoryTree = data.directories || [];
+          } catch (e) { console.error('Failed to load directory tree:', e); }
+        },
+        // Move
+        showMoveDialog(item) {
+          this.moveItem = item;
+          this.moveTargetDir = '';
+          this.showMoveItem = true;
+        },
+        async moveFile() {
+          if (!this.moveItem) return;
+          const newId = this.moveTargetDir ? this.moveTargetDir + '/' + this.moveItem.name.split('/').pop() : this.moveItem.name.split('/').pop();
+          try {
+            const res = await fetch(`./api/manage/move/${this.moveItem.name}?to=${encodeURIComponent(newId)}`, {
+              method: 'GET', credentials: 'include'
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.$message.success('移动成功');
+              this.showMoveItem = false;
+              this.fetchList('./api/manage/list?limit=100');
+            } else {
+              this.$message.error(data.error || '移动失败');
+            }
+          } catch (e) { this.$message.error('移动失败: ' + e.message); }
+        },
+        async batchMove() {
+          const selected = this.tableData.filter(f => f.selected);
+          if (!selected.length || !this.batchMoveTarget) return;
+          const fileIds = selected.map(f => f.name);
+          try {
+            const res = await fetch('./api/manage/batch/move', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ fileIds, to: this.batchMoveTarget }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.$message.success(`成功移动 ${data.successCount}/${data.totalCount} 个文件`);
+              this.showBatchMoveDialog = false;
+              this.fetchList('./api/manage/list?limit=100');
+            } else {
+              this.$message.error(data.error || '批量移动失败');
+            }
+          } catch (e) { this.$message.error('批量移动失败: ' + e.message); }
+        },
+        // Tags
+        async loadAllTags() {
+          try {
+            const res = await fetch('./api/manage/tags/autocomplete?limit=50', { credentials: 'include' });
+            const data = await res.json();
+            this.allTags = (data.tags || []).map(t => t.tag);
+          } catch (e) { console.error('Failed to load tags:', e); }
+        },
+        async applyFilters() {
+          const params = new URLSearchParams();
+          params.set('limit', '1000');
+          if (this.fileType !== 'all') params.set('fileType', this.fileType);
+          if (this.filterOption === 'favorites') params.set('listType', 'None');
+          if (this.filterOption === 'blocked') params.set('listType', 'Block');
+          if (this.filterOption === 'unblocked') params.set('listType', 'White');
+          if (this.selectedTags.length) params.set('includeTags', this.selectedTags.join(','));
+          if (this.search) params.set('search', this.search);
+          if (this.currentDir) params.set('prefix', this.currentDir + '/');
+
+          try {
+            const res = await fetch(`./api/manage/list?${params.toString()}`, { credentials: 'include' });
+            const data = await res.json();
+            this.tableData = (data.keys || []).map(f => ({
+              ...f,
+              selected: false,
+              metadata: { ...f.metadata, liked: f.metadata?.liked ?? false, fileName: f.metadata?.fileName || f.name, fileSize: f.metadata?.fileSize || 0 }
+            }));
+            this.nextCursor = null;
+            this.currentPage = 1;
+          } catch (e) { this.$message.error('筛选失败'); }
+        },
+        async batchTag() {
+          const selected = this.tableData.filter(f => f.selected);
+          if (!selected.length || !this.batchTags.length) return;
+          const fileIds = selected.map(f => f.name);
+          try {
+            const res = await fetch('./api/manage/tags/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ fileIds, action: this.batchTagAction, tags: this.batchTags }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.$message.success(`成功标记 ${data.successCount}/${data.totalCount} 个文件`);
+              this.showBatchTagDialog = false;
+              this.fetchList('./api/manage/list?limit=100');
+            } else {
+              this.$message.error(data.error || '批量标签失败');
+            }
+          } catch (e) { this.$message.error('批量标签失败: ' + e.message); }
+        },
       },
       mounted() {
         // Theme
@@ -1089,6 +1296,8 @@
         // Load settings and tokens
         this.loadSettings();
         this.loadTokens();
+        this.loadDirectoryTree();
+        this.loadAllTags();
         // Keyboard shortcuts for video player
         document.addEventListener('keydown', (e) => {
           if (!this.showVideoPlayer || !this.$refs.videoPlayer) return;
