@@ -9,8 +9,7 @@ export async function onRequestPost(context) {
         await errorHandling(context);
         telemetryData(context);
 
-        const clonedRequest = request.clone();
-        const formData = await clonedRequest.formData();
+        const formData = await request.formData();
 
         // Get all files from the form data
         const files = formData.getAll('files');

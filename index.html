@@ -1760,9 +1760,9 @@
 
     function toggleFS() {
       if (!document.fullscreenElement) {
-        (videoContainer.requestFullscreen || videoContainer.webkitRequestFullscreen || (() => {})).call(videoContainer);
+        videoContainer.requestFullscreen?.();
       } else {
-        (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+        document.exitFullscreen?.();
       }
     }
 

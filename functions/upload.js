@@ -161,8 +161,7 @@ export async function onRequestPost(context) {
     const { request, env } = context;
 
     try {
-        const clonedRequest = request.clone();
-        const formData = await clonedRequest.formData();
+        const formData = await request.formData();
 
         await errorHandling(context);
         telemetryData(context);

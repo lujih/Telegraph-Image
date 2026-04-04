@@ -1,51 +1,52 @@
-import sentryPlugin from "@cloudflare/pages-plugin-sentry";
-import '@sentry/tracing';
+import * as Sentry from "@sentry/cloudflare";
 
 export async function errorHandling(context) {
   const env = context.env;
-  if (typeof env.disable_telemetry == "undefined" || env.disable_telemetry == null || env.disable_telemetry == "") {
+  if (!env.disable_telemetry) {
     context.data.telemetry = true;
     let remoteSampleRate = 0.001;
     try {
       const sampleRate = await fetchSampleRate(context)
       console.log("sampleRate", sampleRate);
-      //check if the sample rate is not null
       if (sampleRate) {
         remoteSampleRate = sampleRate;
       }
     } catch (e) { console.log(e) }
     const sampleRate = env.sampleRate || remoteSampleRate;
     console.log("sampleRate", sampleRate);
-    return sentryPlugin({
+
+    return Sentry.sentryPagesPlugin({
       dsn: "https://219f636ac7bde5edab2c3e16885cb535@o4507041519108096.ingest.us.sentry.io/4507541492727808",
       tracesSampleRate: sampleRate,
-    })(context);;
+    })(context);
   }
   return context.next();
 }
 
 export function telemetryData(context) {
   const env = context.env;
-  if (typeof env.disable_telemetry == "undefined" || env.disable_telemetry == null || env.disable_telemetry == "") {
+  if (!env.disable_telemetry) {
     try {
       const parsedHeaders = {};
+      const safeHeaders = ['user-agent', 'accept', 'content-type', 'referer', 'accept-language', 'accept-encoding', 'connection'];
       context.request.headers.forEach((value, key) => {
-        parsedHeaders[key] = value
-        //check if the value is empty
-        if (value.length > 0) {
-          context.data.sentry.setTag(key, value);
+        if (safeHeaders.includes(key.toLowerCase())) {
+          parsedHeaders[key] = value;
+          if (value.length > 0) {
+            context.data.sentry.setTag(key, value);
+          }
         }
       });
       const CF = JSON.parse(JSON.stringify(context.request.cf));
       const parsedCF = {};
       for (const key in CF) {
-        if (typeof CF[key] == "object") {
-          parsedCF[key] = JSON.stringify(CF[key]);
-        } else {
+        if (key === 'clientTcpRtt' || key === 'colo' || key === 'httpProtocol' || key === 'requestPriority' || key === 'tlsCipher' || key === 'tlsVersion' || key === 'asn' || key === 'country') {
           parsedCF[key] = CF[key];
-          if (CF[key].length > 0) {
+          if (CF[key] && typeof CF[key] !== 'object' && CF[key].length > 0) {
             context.data.sentry.setTag(key, CF[key]);
           }
+        } else if (typeof CF[key] === 'object') {
+          parsedCF[key] = JSON.stringify(CF[key]);
         }
       }
       const data = {
@@ -55,7 +56,6 @@ export function telemetryData(context) {
         method: context.request.method,
         redirect: context.request.redirect,
       }
-      //get the url path
       const urlPath = new URL(context.request.url).pathname;
       const hostname = new URL(context.request.url).hostname;
       context.data.sentry.setTag("path", urlPath);
@@ -64,7 +64,6 @@ export function telemetryData(context) {
       context.data.sentry.setTag("redirect", context.request.redirect);
       context.data.sentry.setContext("request", data);
       const transaction = context.data.sentry.startTransaction({ name: `${context.request.method} ${hostname}` });
-      //add the transaction to the context
       context.data.transaction = transaction;
       return context.next();
     } catch (e) {
