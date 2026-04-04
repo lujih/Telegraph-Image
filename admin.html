@@ -745,53 +745,111 @@
         async uploadFiles(event) {
           const files = Array.from(event.target.files || []);
           if (!files.length) return;
-          const valid = files.filter(f => f.size <= 20 * 1024 * 1024);
-          const invalid = files.filter(f => f.size > 20 * 1024 * 1024);
-          if (invalid.length) this.$message.error(`${invalid.length} 个文件超过20MB限制`);
-          if (!valid.length) { event.target.value = ''; return; }
           try {
-            await this.$confirm(`确定要上传这 ${valid.length} 个文件吗?`, '提示', { type: 'warning' });
+            await this.$confirm(`确定要上传这 ${files.length} 个文件吗?`, '提示', { type: 'warning' });
             this.showUploadPanel = true;
-            const tasks = valid.map(file => ({
+            const tasks = files.map(file => ({
               id: ++this.taskIdCounter, file, fileName: file.name, fileSize: file.size,
               status: 'queued', progress: 0, statusText: '排队中', src: null, error: null, xhr: null
             }));
             this.uploadTasks = this.uploadTasks.concat(tasks);
             let successCount = 0;
-            const upload = async (task) => {
-              task.status = 'uploading';
-              task.statusText = '上传中';
-              task.progress = 0;
-              return new Promise((resolve) => {
-                const formData = new FormData();
-                formData.append('file', task.file);
-                const xhr = new XMLHttpRequest();
-                task.xhr = xhr;
-                xhr.upload.onprogress = (e) => { if (e.lengthComputable) task.progress = Math.round((e.loaded / e.total) * 90); };
-                xhr.onload = () => {
-                  try {
-                    const res = JSON.parse(xhr.responseText);
-                    if (xhr.status === 200 && res[0]?.src) {
-                      task.progress = 100; task.status = 'success'; task.statusText = '上传成功'; task.src = res[0].src;
-                      this.tableData.unshift({ name: res[0].src.replace(/^\/file\//, ''), selected: false, metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName } });
-                      successCount++; resolve(true);
-                    } else {
-                      task.status = 'error'; task.statusText = res[0]?.error || '上传失败'; task.error = res[0]?.error || '上传失败'; task.progress = 0; resolve(false);
-                    }
-                  } catch { task.status = 'error'; task.statusText = '解析失败'; task.error = '解析失败'; task.progress = 0; resolve(false); }
-                };
-                xhr.onerror = () => { task.status = 'error'; task.statusText = '网络错误'; task.error = '网络错误'; task.progress = 0; resolve(false); };
-                xhr.open('POST', `${this.baseURL}/upload`);
-                xhr.withCredentials = true;
-                xhr.send(formData);
-              });
-            };
             for (let i = 0; i < tasks.length; i += 3) {
-              await Promise.all(tasks.slice(i, i + 3).map(upload));
+              const batch = tasks.slice(i, i + 3);
+              await Promise.all(batch.map(task => this.uploadTask(task).then(r => { if (r) successCount++; return r; })));
             }
             this.$message.success(`上传完成：成功 ${successCount} 个，失败 ${tasks.length - successCount} 个`);
           } catch { this.$message.info('已取消上传'); }
           event.target.value = '';
+        },
+        async uploadTask(task) {
+          // Check if file needs chunked upload (>20MB)
+          if (task.file.size > 20 * 1024 * 1024) {
+            return await this.uploadChunkedTask(task);
+          }
+          task.status = 'uploading';
+          task.statusText = '上传中';
+          task.progress = 0;
+          return new Promise((resolve) => {
+            const formData = new FormData();
+            formData.append('file', task.file);
+            const xhr = new XMLHttpRequest();
+            task.xhr = xhr;
+            xhr.upload.onprogress = (e) => { if (e.lengthComputable) task.progress = Math.round((e.loaded / e.total) * 90); };
+            xhr.onload = () => {
+              try {
+                const res = JSON.parse(xhr.responseText);
+                if (xhr.status === 200 && res[0]?.src) {
+                  task.progress = 100; task.status = 'success'; task.statusText = '上传成功'; task.src = res[0].src;
+                  this.tableData.unshift({ name: res[0].src.replace(/^\/file\//, ''), selected: false, metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName } });
+                  resolve(true);
+                } else {
+                  task.status = 'error'; task.statusText = res[0]?.error || '上传失败'; task.error = res[0]?.error || '上传失败'; task.progress = 0; resolve(false);
+                }
+              } catch { task.status = 'error'; task.statusText = '解析失败'; task.error = '解析失败'; task.progress = 0; resolve(false); }
+            };
+            xhr.onerror = () => { task.status = 'error'; task.statusText = '网络错误'; task.error = '网络错误'; task.progress = 0; resolve(false); };
+            xhr.open('POST', `${this.baseURL}/upload`);
+            xhr.withCredentials = true;
+            xhr.send(formData);
+          });
+        },
+        async uploadChunkedTask(task) {
+          const CHUNK_SIZE = 19 * 1024 * 1024;
+          const totalChunks = Math.ceil(task.file.size / CHUNK_SIZE);
+          const chunkIds = [];
+          task.status = 'uploading';
+          task.statusText = `分块 0/${totalChunks}`;
+          task.progress = 0;
+
+          for (let i = 0; i < totalChunks; i++) {
+            if (task.status === 'cancelled') return false;
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, task.file.size);
+            const chunk = task.file.slice(start, end);
+
+            const formData = new FormData();
+            formData.append('chunk', chunk);
+            formData.append('chunkIndex', i);
+            formData.append('totalChunks', totalChunks);
+            formData.append('fileName', task.fileName);
+            formData.append('mimeType', task.file.type);
+
+            try {
+              const res = await fetch('/upload/chunk', { method: 'POST', body: formData });
+              const data = await res.json();
+              if (!data.success) throw new Error(data.error);
+              chunkIds.push(data.fileId);
+              task.progress = Math.round(((i + 1) / totalChunks) * 90);
+              task.statusText = `分块 ${i + 1}/${totalChunks}`;
+            } catch (err) {
+              task.status = 'error';
+              task.statusText = `分块 ${i + 1} 失败`;
+              task.error = err.message;
+              task.progress = 0;
+              return false;
+            }
+          }
+
+          // Commit
+          try {
+            const commitRes = await fetch('/upload/commit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fileName: task.fileName, mimeType: task.file.type, totalSize: task.fileSize, chunks: chunkIds })
+            });
+            const commitData = await commitRes.json();
+            if (commitData[0]?.src) {
+              task.progress = 100; task.status = 'success'; task.statusText = '上传成功'; task.src = commitData[0].src;
+              this.tableData.unshift({ name: commitData[0].src.replace(/^\/file\//, ''), selected: false, metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName } });
+              return true;
+            } else {
+              throw new Error(commitData.error || '提交失败');
+            }
+          } catch (err) {
+            task.status = 'error'; task.statusText = `提交失败: ${err.message}`; task.error = err.message; task.progress = 0;
+            return false;
+          }
         },
         pauseTask(task) { if (task.xhr && task.status === 'uploading') { task.xhr.abort(); task.status = 'paused'; task.statusText = '已暂停'; } },
         resumeTask(task) { if (task.status === 'paused') { task.status = 'queued'; task.statusText = '排队中'; this.processQueue(); } },
@@ -804,29 +862,10 @@
         async processQueue() {
           const queued = this.uploadTasks.filter(t => t.status === 'queued');
           if (!queued.length) return;
-          let successCount = 0;
-          const upload = async (task) => {
-            task.status = 'uploading'; task.statusText = '上传中'; task.progress = 0;
-            return new Promise((resolve) => {
-              const formData = new FormData(); formData.append('file', task.file);
-              const xhr = new XMLHttpRequest(); task.xhr = xhr;
-              xhr.upload.onprogress = (e) => { if (e.lengthComputable) task.progress = Math.round((e.loaded / e.total) * 90); };
-              xhr.onload = () => {
-                try {
-                  const res = JSON.parse(xhr.responseText);
-                  if (xhr.status === 200 && res[0]?.src) {
-                    task.progress = 100; task.status = 'success'; task.statusText = '上传成功'; task.src = res[0].src;
-                    this.tableData.unshift({ name: res[0].src.replace(/^\/file\//, ''), selected: false, metadata: { TimeStamp: Date.now(), fileSize: task.fileSize, fileName: task.fileName } });
-                    successCount++; resolve(true);
-                  } else { task.status = 'error'; task.statusText = res[0]?.error || '上传失败'; task.error = res[0]?.error || '上传失败'; task.progress = 0; resolve(false); }
-                } catch { task.status = 'error'; task.statusText = '解析失败'; task.error = '解析失败'; task.progress = 0; resolve(false); }
-              };
-              xhr.onerror = () => { task.status = 'error'; task.statusText = '网络错误'; task.error = '网络错误'; task.progress = 0; resolve(false); };
-              xhr.onabort = () => { resolve(false); };
-              xhr.open('POST', `${this.baseURL}/upload`); xhr.withCredentials = true; xhr.send(formData);
-            });
-          };
-          for (let i = 0; i < queued.length; i += 3) { await Promise.all(queued.slice(i, i + 3).map(upload)); }
+          for (let i = 0; i < queued.length; i += 3) {
+            const batch = queued.slice(i, i + 3);
+            await Promise.all(batch.map(task => this.uploadTask(task)));
+          }
         },
         async retryFailed() {
           const failed = this.uploadTasks.filter(t => t.status === 'error');

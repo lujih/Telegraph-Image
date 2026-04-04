@@ -1488,6 +1488,10 @@
       let successCount = 0, errorCount = 0;
 
       async function uploadFile(file, idx) {
+        // Check if file needs chunked upload (>20MB)
+        if (file.size > 20 * 1024 * 1024) {
+          return await uploadChunkedFile(file, idx);
+        }
         return new Promise(resolve => {
           const formData = new FormData();
           formData.append('file', file);
@@ -1539,6 +1543,76 @@
           xhr.open('POST', '/upload');
           xhr.send(formData);
         });
+      }
+
+      async function uploadChunkedFile(file, idx) {
+        const CHUNK_SIZE = 19 * 1024 * 1024;
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const chunkIds = [];
+        const bar = document.getElementById(`progress-${idx}`);
+        const status = document.getElementById(`status-${idx}`);
+
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+
+          const formData = new FormData();
+          formData.append('chunk', chunk);
+          formData.append('chunkIndex', i);
+          formData.append('totalChunks', totalChunks);
+          formData.append('fileName', file.name);
+          formData.append('mimeType', file.type);
+
+          try {
+            const res = await fetch('/upload/chunk', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+            chunkIds.push(data.fileId);
+
+            // Update progress
+            const pct = Math.round(((i + 1) / totalChunks) * 90);
+            if (bar) bar.style.width = pct + '%';
+            if (status) status.textContent = `分块 ${i + 1}/${totalChunks}`;
+          } catch (err) {
+            if (status) { status.textContent = '分块上传失败'; status.classList.add('error'); }
+            uploadResults.push({ name: file.name, error: `分块 ${i + 1} 失败: ${err.message}`, success: false });
+            errorCount++;
+            updateStats();
+            return false;
+          }
+        }
+
+        // Commit chunks
+        try {
+          const commitRes = await fetch('/upload/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              mimeType: file.type,
+              totalSize: file.size,
+              chunks: chunkIds
+            })
+          });
+          const commitData = await commitRes.json();
+          if (commitData[0]?.src) {
+            if (bar) { bar.style.width = '100%'; bar.classList.add('success'); }
+            if (status) { status.textContent = '成功'; status.classList.add('success'); }
+            uploadResults.push({ name: file.name, src: commitData[0].src, success: true });
+            successCount++;
+            updateStats();
+            return true;
+          } else {
+            throw new Error(commitData.error || '提交失败');
+          }
+        } catch (err) {
+          if (status) { status.textContent = '提交失败'; status.classList.add('error'); }
+          uploadResults.push({ name: file.name, error: `提交失败: ${err.message}`, success: false });
+          errorCount++;
+          updateStats();
+          return false;
+        }
       }
 
       function updateStats() {

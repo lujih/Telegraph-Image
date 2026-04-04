@@ -578,7 +578,8 @@
       const invalidFiles = [];
 
       Array.from(files).forEach(file => {
-        if (file.size <= MAX_FILE_SIZE) {
+        // No hard limit - files > 20MB will use chunked upload
+        if (file.size > 0) {
           validFiles.push(file);
         } else {
           invalidFiles.push(file);
@@ -586,7 +587,7 @@
       });
 
       if (invalidFiles.length) {
-        alert(`以下文件超过 20MB，已跳过:\n${invalidFiles.map(f => f.name).join('\n')}`);
+        alert(`以下文件为空，已跳过:\n${invalidFiles.map(f => f.name).join('\n')}`);
       }
 
       if (!validFiles.length) return;
@@ -669,6 +670,11 @@
         task.status = 'uploading';
         updateTaskUI(task);
 
+        // Check if file needs chunked upload (>20MB)
+        if (task.file.size > 20 * 1024 * 1024) {
+          return await uploadChunked(task);
+        }
+
         return new Promise((resolve) => {
           const formData = new FormData();
           formData.append('file', task.file);
@@ -723,6 +729,74 @@
         });
       }
 
+      async function uploadChunked(task) {
+        const CHUNK_SIZE = 19 * 1024 * 1024;
+        const totalChunks = Math.ceil(task.file.size / CHUNK_SIZE);
+        const chunkIds = [];
+
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, task.file.size);
+          const chunk = task.file.slice(start, end);
+
+          const formData = new FormData();
+          formData.append('chunk', chunk);
+          formData.append('chunkIndex', i);
+          formData.append('totalChunks', totalChunks);
+          formData.append('fileName', task.file.name);
+          formData.append('mimeType', task.file.type);
+
+          try {
+            const res = await fetch('/upload/chunk', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+            chunkIds.push(data.fileId);
+
+            task.progress = Math.round(((i + 1) / totalChunks) * 90);
+            task.statusText = `分块 ${i + 1}/${totalChunks}`;
+            updateTaskUI(task);
+          } catch (err) {
+            task.status = 'error';
+            task.error = `分块 ${i + 1} 失败: ${err.message}`;
+            task.progress = 0;
+            errorCount++;
+            updateTaskUI(task);
+            updateStats();
+            return;
+          }
+        }
+
+        // Commit
+        try {
+          const commitRes = await fetch('/upload/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: task.file.name,
+              mimeType: task.file.type,
+              totalSize: task.file.size,
+              chunks: chunkIds
+            })
+          });
+          const commitData = await commitRes.json();
+          if (commitData[0]?.src) {
+            task.status = 'success';
+            task.progress = 100;
+            links.push(`${location.origin}${commitData[0].src}`);
+            successCount++;
+          } else {
+            throw new Error(commitData.error || '提交失败');
+          }
+        } catch (err) {
+          task.status = 'error';
+          task.error = `提交失败: ${err.message}`;
+          task.progress = 0;
+          errorCount++;
+        }
+        updateTaskUI(task);
+        updateStats();
+      }
+
       function updateTaskUI(task) {
         const progressBar = document.getElementById(`progress-${task.idx}`);
         const statusEl = document.getElementById(`status-${task.idx}`);
@@ -735,7 +809,7 @@
         if (statusEl) {
           const statusText = {
             'queued': '等待中',
-            'uploading': `${task.progress}%`,
+            'uploading': task.statusText || `${task.progress}%`,
             'success': '成功',
             'error': task.error || '失败'
           }[task.status];

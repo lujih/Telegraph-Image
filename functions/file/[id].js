@@ -6,6 +6,12 @@ export async function onRequest(context) {
     } = context;
 
     const url = new URL(request.url);
+
+    // Check if this is a chunked file
+    if (params.id && params.id.startsWith('chunked_')) {
+        return await serveChunkedFile(params.id, env, url, request);
+    }
+
     let fileUrl = 'https://telegra.ph/' + url.pathname + url.search
     if (url.pathname.length > 39) { // Path length > 39 indicates file uploaded via Telegram Bot API
         const formdata = new FormData();
@@ -125,6 +131,79 @@ export async function onRequest(context) {
 
     // Return file content
     return response;
+}
+
+async function serveChunkedFile(fileId, env, url, request) {
+    if (!env.img_url) {
+        return new Response('KV storage not available', { status: 500 });
+    }
+
+    const record = await env.img_url.getWithMetadata(fileId);
+    if (!record || !record.metadata || record.metadata.type !== 'chunked') {
+        return new Response('File not found', { status: 404 });
+    }
+
+    const metadata = record.metadata;
+    const chunks = metadata.chunks || [];
+    const fileName = metadata.fileName || fileId;
+    const mimeType = metadata.mimeType || 'application/octet-stream';
+    const totalSize = metadata.totalSize || 0;
+
+    // Check whitelist/blocklist
+    if (metadata.ListType === "Block" || metadata.Label === "adult") {
+        const referer = request.headers.get('Referer');
+        const redirectUrl = referer ? "https://static-res.pages.dev/teleimage/img-block-compressed.png" : `${url.origin}/block-img.html`;
+        return Response.redirect(redirectUrl, 302);
+    }
+
+    if (metadata.ListType === "White") {
+        // Proceed to stream
+    }
+
+    if (env.WhiteList_Mode === "true" && metadata.ListType !== "White") {
+        return Response.redirect(`${url.origin}/whitelist-on.html`, 302);
+    }
+
+    // Stream all chunks concatenated
+    const stream = new ReadableStream({
+        async start(controller) {
+            for (const chunkFileId of chunks) {
+                try {
+                    const filePath = await getFilePath(env, chunkFileId);
+                    if (!filePath) {
+                        console.error(`Failed to get path for chunk: ${chunkFileId}`);
+                        continue;
+                    }
+                    const chunkUrl = `https://api.telegram.org/file/bot${env.TG_Bot_Token}/${filePath}`;
+                    const res = await fetch(chunkUrl);
+                    if (!res.ok) {
+                        console.error(`Failed to fetch chunk: ${chunkFileId}, status: ${res.status}`);
+                        continue;
+                    }
+                    const reader = res.body.getReader();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        controller.enqueue(value);
+                    }
+                } catch (err) {
+                    console.error(`Error streaming chunk ${chunkFileId}:`, err);
+                }
+            }
+            controller.close();
+        }
+    });
+
+    const headers = new Headers();
+    headers.set('Content-Type', mimeType);
+    headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    if (totalSize) {
+        headers.set('Content-Length', String(totalSize));
+    }
+    headers.set('Accept-Ranges', 'bytes');
+    headers.set('Cache-Control', 'public, max-age=31536000');
+
+    return new Response(stream, { headers });
 }
 
 async function getFilePath(env, file_id) {
